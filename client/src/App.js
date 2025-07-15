@@ -1,38 +1,32 @@
-import React, { useState } from 'react';
-import Signup from './Signup';
-import Login from './Login';
+import { Routes, Route, Navigate } from 'react-router-dom';
+import Home from './Home';
+import PlayOnline from './PlayOnline';
+import PlayWithFriend from './PlayWithFriend';
+import LoginSignup from './LoginSignup';
+import Profile from './Profile';
+import ProtectedRoute from './components/ProtectedRoute'; // Assuming you create this file
+import { isAuthenticated } from './utils/isAuthenticated';
 
 function App() {
-  const [view, setView] = useState('signup');
+  const authed = isAuthenticated();
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-950 text-white p-4">
+    <Routes>
+      {/* Public Routes */}
+      <Route path="/" element={<Navigate to="/home" />} />
+      <Route path="/home" element={<Home />} />
+      <Route 
+        path="/login" 
+        element={!authed ? <LoginSignup /> : <Navigate to="/home" />} 
+      />
 
-      <div className="bg-gray-800 bg-opacity-90 shadow-2xl rounded-2xl w-full max-w-md overflow-hidden backdrop-blur-sm border border-gray-700">
-
-        {/* tab buttons */}
-        <div className="flex">
-          {['signup','login'].map(tab => (
-            <button
-            key={tab}
-            onClick={() => setView(tab)}
-            className={`flex-1 py-3 text-center font-semibold transition-all duration-300 ${
-              view === tab
-                ? 'bg-purple-700 text-white shadow-md shadow-purple-500'
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600 hover:text-white'
-            }`}
-          >
-            {tab === 'signup' ? 'Sign Up' : 'Log In'}
-          </button>
-          ))}
-        </div>
-
-        {/* only render the active form */}
-        <div className="p-8">
-          {view === 'signup' ? <Signup /> : <Login />}
-        </div>
-      </div>
-    </div>
+      {/* Protected Routes */}
+      <Route element={<ProtectedRoute />}>
+        <Route path="/play-online" element={<PlayOnline />} />
+        <Route path="/play-with-friend" element={<PlayWithFriend />} />
+        <Route path="/profile" element={<Profile />} />
+      </Route>
+    </Routes>
   );
 }
 
