@@ -3,10 +3,12 @@ import { User, Swords, Users, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { isAuthenticated } from './utils/isAuthenticated';
+
 const Home = () => {
   const navigate = useNavigate();
   const [topPlayers, setTopPlayers] = useState([]);
-const authed = isAuthenticated();
+  const [authed, setAuthed] = useState(isAuthenticated()); // Make it state instead of const
+
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
@@ -18,14 +20,18 @@ const authed = isAuthenticated();
     };
     fetchLeaderboard();
   }, []);
-   const handleLogout = () => {
+
+  const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('userId');
     localStorage.removeItem('username');
+    setAuthed(false); // Update the state immediately
     navigate('/login');
   };
+
   const handleClick = (type) => {
-    if (!authed) {
+    const currentAuth = isAuthenticated(); // Check current auth status
+    if (!currentAuth) {
       navigate('/login');
     } else {
       if (type === 'online') {
@@ -37,7 +43,8 @@ const authed = isAuthenticated();
   };
 
   const handleProfileClick = () => {
-    if (!authed) {
+    const currentAuth = isAuthenticated(); // Check current auth status
+    if (!currentAuth) {
       navigate('/login');
     } else {
       navigate('/profile');

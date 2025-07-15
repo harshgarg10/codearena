@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db'); // adjust according to your db connection file
-
+const pool = require('../config/db'); 
 router.get('/top', async (req, res) => {
   try {
     const [rows] = await pool.query(
