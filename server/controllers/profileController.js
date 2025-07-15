@@ -4,6 +4,18 @@ exports.getUserStats = async (req, res) => {
   const userId = req.user.userId;
 
   try {
+    // First, get the user's basic information
+    const [userRows] = await db.query(
+      'SELECT username, rating FROM users WHERE id = ?',
+      [userId]
+    );
+
+    if (userRows.length === 0) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+
+    const user = userRows[0];
+
     // Check if submissions table exists, if not return default values
     const [tableCheck] = await db.query(
       "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = ? AND table_name = 'submissions'",
@@ -11,8 +23,10 @@ exports.getUserStats = async (req, res) => {
     );
 
     if (tableCheck[0].count === 0) {
-      // Submissions table doesn't exist, return default values
+      // Submissions table doesn't exist, return default values with user info
       return res.json({
+        username: user.username,
+        rating: user.rating,
         totalSubmissions: 0,
         acceptedSubmissions: 0,
         acceptanceRate: 0,
@@ -48,6 +62,8 @@ exports.getUserStats = async (req, res) => {
     const acceptanceRate = total ? Math.round((accepted / total) * 100) : 0;
 
     res.json({
+      username: user.username,
+      rating: user.rating,
       totalSubmissions: total,
       acceptedSubmissions: accepted,
       acceptanceRate,
