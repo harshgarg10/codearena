@@ -49,6 +49,7 @@ function App() {
         <Route path="/play-online" element={<PlayOnline />} />
         <Route path="/play-with-friend" element={<PlayWithFriend />} />
         <Route path="/profile" element={<Profile />} />
+        
       </Route>
     </Routes>
   );

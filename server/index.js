@@ -37,18 +37,28 @@ app.use('/api/auth', authRoutes);
 app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/profile', profileRoutes);
 
-// Socket.io for real-time features
-const rooms = new Map();
+// ====== Socket.io State & Helpers ======
+const rooms = new Map(); // { roomCode => { players: [usernames], creator } } 
+const MatchQueue = require('./matchQueue');
+const matchQueue = new MatchQueue(); // [{ username, socketId, rating }]
+const userTimeouts = new Map(); // socketId => timeoutId
+const userMap = new Map();
+const generateRoomCode = () =>
+  Math.random().toString(36).substr(2, 6).toUpperCase();
 
+
+
+// ====== Socket.io Logic ======
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
+  // === Play With Friend ===
   socket.on('create-room', ({ username }) => {
-    const roomCode = Math.random().toString(36).substr(2, 6).toUpperCase();
+    const roomCode = generateRoomCode();
     rooms.set(roomCode, { players: [username], creator: username });
     socket.join(roomCode);
     socket.emit('room-created', { roomCode });
-    console.log(`Room ${roomCode} created by ${username}`);
+    console.log(`🟣 Room ${roomCode} created by ${username}`);
   });
 
   socket.on('join-room', ({ roomCode, username }) => {
@@ -61,10 +71,6 @@ io.on('connection', (socket) => {
       socket.emit('join-error', 'Room is full');
       return;
     }
-    // if (room.players.includes(username)) {
-    //   socket.emit('join-error', 'Username already taken in this room');
-    //   return;
-    // }
 
     room.players.push(username);
     socket.join(roomCode);
@@ -75,13 +81,81 @@ io.on('connection', (socket) => {
     console.log(`${username} joined room ${roomCode}`);
   });
 
+  // === Matchmaking Logic ===
+  socket.on('find-match', ({ username, rating }) => {
+  const user = { username, socketId: socket.id, rating };
+
+  // If already queued, ignore
+  if (userMap.has(socket.id)) return;
+
+  // Try to match
+  const match = matchQueue.match(user);
+  if (match) {
+    // cleanup the matched user
+    clearTimeout(userTimeouts.get(match.socketId));
+    userTimeouts.delete(match.socketId);
+    userMap.delete(match.socketId);
+
+    const roomCode = generateRoomCode();
+    io.to(user.socketId).emit('match-found', { roomCode, opponent: match.username });
+    io.to(match.socketId).emit('match-found', { roomCode, opponent: user.username });
+
+    socket.join(roomCode);
+    io.sockets.sockets.get(match.socketId)?.join(roomCode);
+    console.log(`Matched ${user.username} with ${match.username} in room ${roomCode}`);
+  } else {
+    // No match yet: queue & track
+    matchQueue.insert(user);
+    userMap.set(socket.id, user);
+
+    const timeout = setTimeout(() => {
+      matchQueue.remove(user);
+      userMap.delete(socket.id);
+      socket.emit('match-timeout');
+      userTimeouts.delete(socket.id);
+      console.log(`Timeout for ${user.username}`);
+    }, 60000);
+
+    userTimeouts.set(socket.id, timeout);
+    socket.emit('searching');
+  }
+});
+
+
+  socket.on('cancel-matchmaking', () => {
+    const user = userMap.get(socket.id);
+    if (user) {
+      matchQueue.remove(user);
+      userMap.delete(socket.id);
+    }
+    if (userTimeouts.has(socket.id)) {
+      clearTimeout(userTimeouts.get(socket.id));
+      userTimeouts.delete(socket.id);
+    }
+    socket.emit('match-cancelled');
+    console.log(`❌ Matchmaking cancelled by ${socket.id}`);
+  });      
+
+
+  // === Disconnect Cleanup ===
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    // Handle room cleanup when user disconnects
-    rooms.forEach((room, roomCode) => {
-      const playerIndex = room.players.findIndex(player => player === socket.id);
-      if (playerIndex !== -1) {
-        room.players.splice(playerIndex, 1);
+
+    // Clean up match queue
+    const user = userMap.get(socket.id);
+    if (user) {
+      matchQueue.remove(user);
+      userMap.delete(socket.id);
+    }
+    if (userTimeouts.has(socket.id)) {
+      clearTimeout(userTimeouts.get(socket.id));
+      userTimeouts.delete(socket.id);
+    }
+    // Clean up friend rooms
+    for (const [roomCode, room] of rooms.entries()) {
+      const index = room.players.findIndex((p) => p.socketId === socket.id || p === socket.id);
+      if (index !== -1) {
+        room.players.splice(index, 1);
         if (room.players.length === 0) {
           rooms.delete(roomCode);
         } else {
@@ -91,10 +165,10 @@ io.on('connection', (socket) => {
           });
         }
       }
-    });
+    }
   });
 });
 
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`Server running on port ${PORT}`);
 });
