@@ -17,14 +17,8 @@ class MatchQueue {
     this.tree.remove(user);
   }
 
-  /**
-   * Find + remove the user whose rating is closest to `user.rating`.
-   * Returns matched user or null if empty.
-   */
   match(user) {
     if (this.tree.size === 0) return null;
-
-    // Get an iterator positioned at the first node >= user
     const it = this.tree.lowerBound(user);
     const candidates = [];
     const c1 = it.data();
@@ -38,7 +32,6 @@ class MatchQueue {
 
     if (candidates.length === 0) return null;
 
-    // Pick the one with the smallest diff
     candidates.sort((a, b) => a.diff - b.diff);
     const best = candidates[0].user;
 

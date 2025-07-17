@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { ArrowRight, Users, Copy } from 'lucide-react';
 
 const PlayWithFriend = () => {
+  const navigate = useNavigate();
   const [roomCode, setRoomCode] = useState('');
   const [roomInput, setRoomInput] = useState('');
   const [isHost, setIsHost] = useState(false);
@@ -29,8 +31,16 @@ const PlayWithFriend = () => {
       setStatus(`${message}. Players in room: ${players.length}`);
       if (players.length === 2) {
         setStatus('Both players joined! Starting the duel...');
-        // TODO: trigger start duel logic
       }
+    });
+
+    newSocket.on('match-found', ({ roomCode, problem, users }) => {
+      setStatus('Match found! Entering duel room...');
+      
+      // Navigate to duel room after a short delay
+      setTimeout(() => {
+        navigate(`/duel/${roomCode}`);
+      }, 1000);
     });
 
     newSocket.on('join-error', (errMsg) => {
@@ -42,10 +52,11 @@ const PlayWithFriend = () => {
       newSocket.off('connect');
       newSocket.off('room-created');
       newSocket.off('room-update');
+      newSocket.off('match-found');
       newSocket.off('join-error');
       newSocket.disconnect();
     };
-  }, []);
+  }, [navigate]);
 
   const createRoom = () => {
     if (socket) {

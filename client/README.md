@@ -1,70 +1,134 @@
-# Getting Started with Create React App
+# AlgoArena - Competitive Programming Duel Platform
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+A real-time competitive programming platform where users can duel against each other or friends in coding challenges.
 
-## Available Scripts
+## Features
 
-In the project directory, you can run:
+- 🎯 **Online Matchmaking**: Get matched with players of similar skill level
+- 👥 **Friend Duels**: Create private rooms and invite friends
+- 🏆 **Rating System**: Track your progress and climb the leaderboard
+- 💻 **Multi-language Support**: Code in C++, Python, or Java
+- ⚡ **Real-time**: Live updates during duels using WebSockets
 
-### `npm start`
+## Quick Start
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+### Prerequisites
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+- Node.js (v14 or higher)
+- MySQL (v8.0 or higher)
+- npm or yarn
 
-### `npm test`
+### Installation
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/yourusername/algoarena.git
+   cd algoarena
+   ```
 
-### `npm run build`
+2. **Install dependencies**
+   ```bash
+   # Install root dependencies
+   npm install
+   
+   # Install server dependencies
+   cd server
+   npm install
+   
+   # Install client dependencies
+   cd ../client
+   npm install
+   ```
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+3. **Set up the database**
+   - Create a MySQL database named `codearena`
+   - Import the schema: `mysql -u root -p codearena < server/db/schema.sql`
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
+4. **Configure environment variables**
+   - Copy `server/.env.example` to `server/.env`
+   - Update the database credentials:
+   ```env
+   DB_HOST=localhost
+   DB_USER=root
+   DB_PASS=your_password
+   DB_NAME=codearena
+   JWT_SECRET=your_jwt_secret_here
+   PORT=5000
+   ```
 
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
+5. **Start the application**
+   ```bash
+   # Start the server (from server directory)
+   npm run dev
+   
+   # Start the client (from client directory, in a new terminal)
+   npm start
+   ```
 
-### `npm run eject`
+6. **Access the application**
+   - Open your browser and go to `http://localhost:3000`
+   - The server runs on `http://localhost:5000`
 
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
+## Database Setup
 
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
+The application will automatically seed the database with initial problems when you start the server for the first time. If you need to manually seed the database:
 
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
+```bash
+cd server
+npm run seed
+```
 
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
+## Technology Stack
 
-## Learn More
+### Frontend
+- React 18
+- React Router v6
+- Tailwind CSS
+- Socket.io Client
+- Monaco Editor (VS Code editor)
+- Lucide React (Icons)
 
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
+### Backend
+- Node.js
+- Express.js
+- Socket.io
+- MySQL
+- JWT Authentication
+- bcrypt for password hashing
 
-To learn React, check out the [React documentation](https://reactjs.org/).
+## Project Structure
 
-### Code Splitting
+```
+algoarena/
+├── client/                 # React frontend
+│   ├── src/
+│   │   ├── components/     # Reusable components
+│   │   ├── utils/          # Utility functions
+│   │   └── ...
+│   └── package.json
+├── server/                 # Node.js backend
+│   ├── config/             # Database configuration
+│   ├── controllers/        # Route controllers
+│   ├── db/                 # Database files
+│   ├── middleware/         # Custom middleware
+│   ├── routes/             # API routes
+│   ├── utils/              # Utility functions
+│   └── package.json
+└── README.md
+```
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
+## Contributing
 
-### Analyzing the Bundle Size
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add some amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
+## License
 
-### Making a Progressive Web App
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
+## Support
 
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+If you encounter any issues, please file an issue on the GitHub repository.

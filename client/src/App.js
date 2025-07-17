@@ -7,7 +7,7 @@ import LoginSignup from './LoginSignup';
 import Profile from './Profile';
 import ProtectedRoute from './components/ProtectedRoute';
 import { isAuthenticated } from './utils/isAuthenticated';
-
+import DuelRoom from './DuelRoom';
 function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
 
@@ -49,7 +49,8 @@ function App() {
         <Route path="/play-online" element={<PlayOnline />} />
         <Route path="/play-with-friend" element={<PlayWithFriend />} />
         <Route path="/profile" element={<Profile />} />
-        
+     
+        <Route path="/duel/:roomCode" element={<DuelRoom />} />
       </Route>
     </Routes>
   );

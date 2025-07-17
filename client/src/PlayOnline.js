@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { Loader2, XCircle, Users } from 'lucide-react';
 
 const PlayOnline = () => {
+  const navigate = useNavigate();
   const [status, setStatus] = useState('Click below to find a match');
   const [searching, setSearching] = useState(false);
   const [socket, setSocket] = useState(null);
@@ -14,10 +16,14 @@ const PlayOnline = () => {
     const newSocket = io('http://localhost:5000');
     setSocket(newSocket);
 
-    newSocket.on("match-found", ({ roomCode, opponent }) => {
-      setStatus(`✅ Matched with ${opponent}. Room: ${roomCode}`);
+    newSocket.on("match-found", ({ roomCode, opponent, problem }) => {
+      setStatus(`✅ Matched with ${opponent}. Entering duel room...`);
       setSearching(false);
-      // Optionally redirect to duel screen
+      
+      // Navigate to duel room after a short delay
+      setTimeout(() => {
+        navigate(`/duel/${roomCode}`);
+      }, 1000);
     });
 
     newSocket.on("match-timeout", () => {
@@ -37,7 +43,7 @@ const PlayOnline = () => {
       newSocket.off("match-cancelled");
       newSocket.disconnect();
     };
-  }, []);
+  }, [navigate]);
 
   const findMatch = () => {
     if (socket) {
