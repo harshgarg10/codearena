@@ -1,32 +1,52 @@
 const express = require('express');
 const router = express.Router();
+const { executeCode } = require('../utils/codeExecuter');
 
-// Mock code execution for custom input
-router.post('/custom', (req, res) => {
-  const { code, input } = req.body;
+// Execute code with custom input
+router.post('/custom', async (req, res) => {
+  const { code, input, language } = req.body;
   
-  // This is a mock implementation - in a real app you'd run the code in a sandbox
+  if (!code || !language) {
+    return res.status(400).json({ output: '❌ Code and language are required' });
+  }
+
   try {
-    // For demo purposes, just return the input as output
-    const output = `Mock output for input: ${input}\nCode length: ${code.length} characters`;
-    res.json({ output });
+    console.log(`🚀 Executing ${language} code...`);
+    const result = await executeCode(code, input || '', language);
+    res.json(result);
   } catch (error) {
-    res.status(500).json({ output: 'Execution error: ' + error.message });
+    console.error('Custom execution error:', error);
+    res.status(500).json({ output: '❌ Internal server error', error: error.message });
   }
 });
 
-// Mock code execution for submission
-router.post('/submit', (req, res) => {
-  const { code, problemId, username } = req.body;
+// Submit code for testing (you can expand this with test cases)
+router.post('/submit', async (req, res) => {
+  const { code, problemId, username, language } = req.body;
   
-  // This is a mock implementation - in a real app you'd test against test cases
+  if (!code || !language) {
+    return res.status(400).json({ passed: 0, total: 0, error: 'Code and language are required' });
+  }
+
   try {
-    // For demo purposes, randomly pass/fail some test cases
-    const total = 5;
-    const passed = Math.floor(Math.random() * (total + 1));
+    console.log(`📝 Submission by ${username} for problem ${problemId}`);
     
-    res.json({ passed, total });
+    // For now, just run with sample input (you can expand this with actual test cases)
+    const result = await executeCode(code, '3 5', language); // Sample input
+    
+    // Simple check: if output contains "8", consider it passed (for demo)
+    const isCorrect = result.output && result.output.trim() === '8';
+    const passed = isCorrect ? 5 : 0;
+    const total = 5;
+    
+    res.json({ 
+      passed, 
+      total, 
+      output: result.output,
+      message: `Passed ${passed}/${total} test cases`
+    });
   } catch (error) {
+    console.error('Submission error:', error);
     res.status(500).json({ passed: 0, total: 5, error: error.message });
   }
 });

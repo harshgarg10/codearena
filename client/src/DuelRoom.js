@@ -173,31 +173,35 @@ const DuelRoom = () => {
         </div>
 
       {/* RIGHT: Code Editor - Always visible */}
-      <div className="w-1/2 bg-black p-6 flex flex-col">
-        {/* Language Selector - Always at the top */}
-        <div className="flex justify-between items-center mb-4 p-2 bg-gray-800 rounded-lg">
-          <div className="text-white font-semibold">
-            {problem ? problem.title : 'Loading...'}
-          </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="language" className="text-white text-sm">Language:</label>
-            <select
-              id="language"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-              className="bg-gray-700 text-white px-3 py-1 rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
-            >
-              <option value="cpp">C++</option>
-              <option value="python">Python</option>
-              <option value="java">Java</option>
-            </select>
-          </div>
+      
+      {/* RIGHT: Code Editor - Always visible */}
+    <div className="w-1/2 bg-black p-6 flex flex-col max-h-screen">
+      {/* Language Selector - Always at the top */}
+      <div className="flex justify-between items-center mb-4 p-2 bg-gray-800 rounded-lg flex-shrink-0">
+        <div className="text-white font-semibold">
+          {problem ? problem.title : 'Loading...'}
         </div>
+        <div className="flex items-center gap-2">
+          <label htmlFor="language" className="text-white text-sm">Language:</label>
+          <select
+            id="language"
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="bg-gray-700 text-white px-3 py-1 rounded border border-gray-600 focus:border-purple-500 focus:outline-none"
+          >
+            <option value="cpp">C++</option>
+            <option value="python">Python</option>
+            <option value="java">Java</option>
+          </select>
+        </div>
+      </div>
 
+      {/* Scrollable content area */}
+      <div className="flex-1 flex flex-col overflow-hidden">
         {/* Code Editor */}
-        <div className="flex-1 mb-4 border border-gray-700 rounded-lg overflow-hidden">
+        <div className="flex-1 mb-4 border border-gray-700 rounded-lg overflow-hidden min-h-0">
           <Editor
-            height="400px"
+            height="100%"
             language={language === 'cpp' ? 'cpp' : language}
             theme="vs-dark"
             value={code}
@@ -213,18 +217,18 @@ const DuelRoom = () => {
         </div>
 
         {/* Custom Input */}
-        <div className="mb-4">
+        <div className="mb-4 flex-shrink-0">
           <label className="block text-white text-sm mb-2">Custom Input (optional):</label>
           <textarea
             value={customInput}
             onChange={(e) => setCustomInput(e.target.value)}
             placeholder="Enter your custom input here..."
-            className="w-full bg-gray-800 p-3 rounded-lg h-20 text-white resize-none border border-gray-700 focus:border-purple-500 focus:outline-none"
+            className="w-full bg-gray-800 p-3 rounded-lg h-20 text-white resize-none border border-gray-700 focus:border-purple-500 focus:outline-none custom-scrollbar"
           />
         </div>
 
         {/* Action Buttons */}
-        <div className="flex gap-4 mb-4">
+        <div className="flex gap-4 mb-4 flex-shrink-0">
           <button
             onClick={runCustomTest}
             className="flex-1 bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold text-white"
@@ -241,16 +245,19 @@ const DuelRoom = () => {
           </button>
         </div>
 
-        {/* Output Section */}
+        {/* Output Section with Scrollbar */}
         {output && (
-          <div className="bg-gray-800 p-4 rounded-lg border border-gray-700">
-            <h4 className="font-semibold text-yellow-400 mb-2">Output:</h4>
-            <pre className="whitespace-pre-wrap text-gray-300 text-sm max-h-32 overflow-y-auto">
-              {output}
-            </pre>
+          <div className="bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0 flex-shrink-0 max-h-48">
+            <h4 className="font-semibold text-yellow-400 p-4 pb-2 flex-shrink-0">Output:</h4>
+            <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4">
+              <pre className="whitespace-pre-wrap text-gray-300 text-sm">
+                {output}
+              </pre>
+            </div>
           </div>
         )}
       </div>
+    </div>
     </div>
   );
 };
