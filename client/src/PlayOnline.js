@@ -2,49 +2,46 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { Loader2, XCircle, Users } from 'lucide-react';
-
+import { useSocket } from './context/SocketContext'; 
 const PlayOnline = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState('Click below to find a match');
   const [searching, setSearching] = useState(false);
-  const [socket, setSocket] = useState(null);
+  const socket = useSocket();
   const username = localStorage.getItem('username') || 'Anonymous';
   const rating = parseInt(localStorage.getItem('rating')) || 1200;
 
   useEffect(() => {
-    // Create socket connection inside useEffect
-    const newSocket = io('http://localhost:5000');
-    setSocket(newSocket);
+    if (!socket) return; // Wait for the socket to be available
 
-    newSocket.on("match-found", ({ roomCode, opponent, problem }) => {
+    const handleMatchFound = ({ roomCode, opponent, problem }) => {
       setStatus(`✅ Matched with ${opponent}. Entering duel room...`);
       setSearching(false);
       
-      // Navigate to duel room after a short delay
       setTimeout(() => {
         navigate(`/duel/${roomCode}`);
       }, 1000);
-    });
+    };
 
-    newSocket.on("match-timeout", () => {
+    const handleMatchTimeout = () => {
       setStatus("⚠️ No match found. Try again.");
       setSearching(false);
-    });
+    };
 
-    newSocket.on("match-cancelled", () => {
+    const handleMatchCancelled = () => {
       setStatus("❌ You left the matchmaking queue.");
       setSearching(false);
-    });
-
-    // Cleanup function
-    return () => {
-      newSocket.off("match-found");
-      newSocket.off("match-timeout");
-      newSocket.off("match-cancelled");
-      newSocket.disconnect();
     };
-  }, [navigate]);
 
+    socket.on("match-found", handleMatchFound);
+    socket.on("match-timeout", handleMatchTimeout);
+    socket.on("match-cancelled", handleMatchCancelled);
+    return () => {
+      socket.off("match-found", handleMatchFound);
+      socket.off("match-timeout", handleMatchTimeout);
+      socket.off("match-cancelled", handleMatchCancelled);
+    };
+  }, [socket, navigate]);
   const findMatch = () => {
     if (socket) {
       setSearching(true);

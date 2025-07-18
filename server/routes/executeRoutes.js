@@ -1,8 +1,9 @@
 const express = require('express');
 const router = express.Router();
 const { executeCode } = require('../utils/codeExecuter');
+const { evaluateSubmission } = require('../utils/evaluateSubmission');
 
-// Execute code with custom input
+// Route 1️⃣: Run Custom Input (like "Run Code" button)
 router.post('/custom', async (req, res) => {
   const { code, input, language } = req.body;
   
@@ -11,43 +12,63 @@ router.post('/custom', async (req, res) => {
   }
 
   try {
-    console.log(`🚀 Executing ${language} code...`);
+    console.log(`⚙️ Running ${language} code with custom input`);
     const result = await executeCode(code, input || '', language);
-    res.json(result);
+    
+    // Handle the new result format from codeExecuter
+    if (result.verdict === 'Success') {
+      res.json({ 
+        output: result.output,
+        time: result.time,
+        verdict: result.verdict
+      });
+    } else {
+      res.json({ 
+        output: `❌ ${result.verdict}: ${result.output}`,
+        time: result.time,
+        verdict: result.verdict
+      });
+    }
   } catch (error) {
     console.error('Custom execution error:', error);
     res.status(500).json({ output: '❌ Internal server error', error: error.message });
   }
 });
 
-// Submit code for testing (you can expand this with test cases)
+// Route 2️⃣: Full Submission — Run on all real testcases, calculate score
 router.post('/submit', async (req, res) => {
-  const { code, problemId, username, language } = req.body;
-  
-  if (!code || !language) {
-    return res.status(400).json({ passed: 0, total: 0, error: 'Code and language are required' });
+  const { code, problemId, username, language = 'cpp', duelId = null } = req.body;
+
+  if (!code || !language || !problemId || !username) {
+    return res.status(400).json({ 
+      error: 'Missing required submission fields',
+      passed: 0,
+      total: 0 
+    });
   }
 
   try {
-    console.log(`📝 Submission by ${username} for problem ${problemId}`);
+    console.log(`📩 Submission received from "${username}" for problem ${problemId}`);
     
-    // For now, just run with sample input (you can expand this with actual test cases)
-    const result = await executeCode(code, '3 5', language); // Sample input
-    
-    // Simple check: if output contains "8", consider it passed (for demo)
-    const isCorrect = result.output && result.output.trim() === '8';
-    const passed = isCorrect ? 5 : 0;
-    const total = 5;
-    
-    res.json({ 
-      passed, 
-      total, 
-      output: result.output,
-      message: `Passed ${passed}/${total} test cases`
+    const result = await evaluateSubmission({ code, language, username, problemId, duelId });
+
+    res.json({
+      verdict: result.verdict,
+      passed: result.passed,
+      total: result.total,
+      score: result.score,
+      time: result.time,
+      message: `${result.verdict}: Passed ${result.passed}/${result.total} testcases`
     });
+
   } catch (error) {
-    console.error('Submission error:', error);
-    res.status(500).json({ passed: 0, total: 5, error: error.message });
+    console.error('❌ Submission evaluation failed:', error);
+    res.status(500).json({
+      error: error.message,
+      message: 'Something went wrong while evaluating the submission.',
+      passed: 0,
+      total: 0
+    });
   }
 });
 
