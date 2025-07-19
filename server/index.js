@@ -19,7 +19,7 @@ const profileRoutes = require('./routes/profileRoutes');
 const executeRoutes = require('./routes/executeRoutes');
 const { getRandomProblem } = require('./utils/problemUtils');
 const { seedProblems } = require('./db/seed'); // Add this import
-
+const { saveDuelResult } = require('./controllers/duelController');
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -67,117 +67,192 @@ io.on('connection', (socket) => {
 
   socket.on('join-room', async ({ roomCode, username }) => {
   // Track this socket's username
-  socketToUser.set(socket.id, username);
+    socketToUser.set(socket.id, username);
 
-  const room = rooms.get(roomCode);
+    const room = rooms.get(roomCode);
 
-  if (!room) {
-    socket.emit('join-error', 'Room not found');
-    return;
-  }
+    if (!room) {
+      socket.emit('join-error', 'Room not found');
+      return;
+    }
 
-  if (room.players.length >= 2) {
-    socket.emit('join-error', 'Room is full');
-    return;
-  }
+    if (room.players.length >= 2) {
+      socket.emit('join-error', 'Room is full');
+      return;
+    }
 
-  room.players.push(username);
-  socket.join(roomCode);
+    room.players.push(username);
+    socket.join(roomCode);
 
-  io.to(roomCode).emit('room-update', {
-    message: `${username} joined the room`,
-    players: room.players
-  });
-
-  if (room.players.length === 2) {
-    const problem = await getRandomProblem();
-    const [user1, user2] = room.players;
-
-  room.problem = problem;
-    room.scores = { [user1]: 0, [user2]: 0 };
-    room.times = { [user1]: 0, [user2]: 0 };
-    room.startTime = Date.now();
-
-    // Start 30-minute timer for friend duel
-    const timer = setTimeout(() => {
-      handleDuelTimeout(roomCode);
-    }, 30 * 60 * 1000);
-
-    duelTimers.set(roomCode, timer);
-
-    io.to(roomCode).emit('match-found', {
-      roomCode,
-      problem,
-      users: [user1, user2],
+    io.to(roomCode).emit('room-update', {
+      message: `${username} joined the room`,
+      players: room.players
     });
 
-    console.log(`Match started in room ${roomCode} with problem: ${problem.title}`);
-  }
-});
-  socket.on('submission-result', ({ roomCode, username, passed, total, time }) => {
-  const room = rooms.get(roomCode);
-  if (!room) return;
+    if (room.players.length === 2) {
+      const problem = await getRandomProblem();
+      const [user1, user2] = room.players;
 
-  // Update room scores and times
-  room.scores[username] = passed;
-  room.times[username] = time || 0;
+    room.problem = problem;
+      room.scores = { [user1]: 0, [user2]: 0 };
+      room.times = { [user1]: 0, [user2]: 0 };
+      room.startTime = Date.now();
 
-  // Broadcast updated scores to room
-  io.to(roomCode).emit('score-update', {
-    scores: room.scores,
-    times: room.times
-  });
+      // Start 30-minute timer for friend duel
+      const timer = setTimeout(() => {
+        handleDuelTimeout(roomCode);
+      }, 30 * 60 * 1000);
 
-  console.log(`Score update in room ${roomCode}: ${username} scored ${passed}/${total}`);
-});
-  const handleDuelTimeout = (roomCode) => {
-  const room = rooms.get(roomCode);
-  if (!room) return;
+      duelTimers.set(roomCode, timer);
 
-  const [player1, player2] = room.players;
-  const score1 = room.scores[player1] || 0;
-  const score2 = room.scores[player2] || 0;
-  const time1 = room.times[player1] || 0;
-  const time2 = room.times[player2] || 0;
+      io.to(roomCode).emit('match-found', {
+        roomCode,
+        problem,
+        users: [user1, user2],
+      });
 
-  let winner;
-  let reason;
-
-  if (score1 > score2) {
-    winner = player1;
-    reason = `${player1} wins with ${score1} test cases passed!`;
-  } else if (score2 > score1) {
-    winner = player2;
-    reason = `${player2} wins with ${score2} test cases passed!`;
-  } else {
-    // Same score, check time
-    if (time1 < time2 && time1 > 0) {
-      winner = player1;
-      reason = `${player1} wins with same score but faster time (${time1.toFixed(2)}s vs ${time2.toFixed(2)}s)!`;
-    } else if (time2 < time1 && time2 > 0) {
-      winner = player2;
-      reason = `${player2} wins with same score but faster time (${time2.toFixed(2)}s vs ${time1.toFixed(2)}s)!`;
-    } else {
-      winner = null;
-      reason = "It's a tie! Both players performed equally.";
+      console.log(`Match started in room ${roomCode} with problem: ${problem.title}`);
     }
-  }
+  });
+  // Update the submission-result handler
+  socket.on('submission-result', async ({ roomCode, username, passed, total, time }) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
 
-  io.to(roomCode).emit('duel-ended', {
-    winner,
-    reason,
-    finalScores: room.scores,
-    finalTimes: room.times
+    // Update room scores and times
+    room.scores[username] = passed;
+    room.times[username] = time || 0;
+
+    console.log(`Score update in room ${roomCode}: ${username} scored ${passed}/${total}`);
+
+    // Check if player got perfect score (solved the problem completely)
+    if (passed === total && total > 0) {
+      // Player solved all test cases - end the game immediately
+      const [player1, player2] = room.players;
+      
+      console.log(`🏆 ${username} solved all test cases! Game ending immediately.`);
+      
+      // Clear the duel timer since game is ending early
+      const timer = duelTimers.get(roomCode);
+      if (timer) {
+        clearTimeout(timer);
+        duelTimers.delete(roomCode);
+      }
+
+      const reason = `🏆 ${username} wins by solving all test cases! (${passed}/${total} in ${time.toFixed(2)}s)`;
+
+      // Save duel result to database
+      try {
+        const { ratingChanges } = await saveDuelResult({
+          roomCode,
+          players: room.players,
+          problemId: room.problem?.id,
+          scores: room.scores,
+          times: room.times,
+          winner: username,
+          endReason: reason
+        });
+
+        io.to(roomCode).emit('duel-ended', {
+          winner: username,
+          reason,
+          finalScores: room.scores,
+          finalTimes: room.times,
+          ratingChanges
+        });
+      } catch (error) {
+        console.error('Failed to save duel result:', error);
+        // Still end the game even if saving fails
+        io.to(roomCode).emit('duel-ended', {
+          winner: username,
+          reason,
+          finalScores: room.scores,
+          finalTimes: room.times
+        });
+      }
+
+      rooms.delete(roomCode);
+      return;
+    }
+
+    // Broadcast updated scores to room (only if game hasn't ended)
+    io.to(roomCode).emit('score-update', {
+      scores: room.scores,
+      times: room.times
+    });
   });
 
-  // Clean up
-  duelTimers.delete(roomCode);
-  rooms.delete(roomCode);
+  // Update the handleDuelTimeout function
+  const handleDuelTimeout = async (roomCode) => {
+    const room = rooms.get(roomCode);
+    if (!room) return;
 
-  console.log(`Duel ended in room ${roomCode}: ${reason}`);
-};
-  // === Matchmaking Logic ===
-  // === Matchmaking Logic ===
+    const [player1, player2] = room.players;
+    const score1 = room.scores[player1] || 0;
+    const score2 = room.scores[player2] || 0;
+    const time1 = room.times[player1] || 0;
+    const time2 = room.times[player2] || 0;
+
+    let winner;
+    let reason;
+
+    if (score1 > score2) {
+      winner = player1;
+      reason = `${player1} wins with ${score1} test cases passed!`;
+    } else if (score2 > score1) {
+      winner = player2;
+      reason = `${player2} wins with ${score2} test cases passed!`;
+    } else {
+      // Same score, check time
+      if (time1 < time2 && time1 > 0) {
+        winner = player1;
+        reason = `${player1} wins with same score but faster time (${time1.toFixed(2)}s vs ${time2.toFixed(2)}s)!`;
+      } else if (time2 < time1 && time2 > 0) {
+        winner = player2;
+        reason = `${player2} wins with same score but faster time (${time2.toFixed(2)}s vs ${time1.toFixed(2)}s)!`;
+      } else {
+        winner = null;
+        reason = "It's a tie! Both players performed equally.";
+      }
+    }
+
+    // Save duel result to database
+    try {
+      const { ratingChanges } = await saveDuelResult({
+        roomCode,
+        players: room.players,
+        problemId: room.problem?.id,
+        scores: room.scores,
+        times: room.times,
+        winner,
+        endReason: reason
+      });
+
+      io.to(roomCode).emit('duel-ended', {
+        winner,
+        reason,
+        finalScores: room.scores,
+        finalTimes: room.times,
+        ratingChanges
+      });
+    } catch (error) {
+      console.error('Failed to save duel result:', error);
+      // Still end the game even if saving fails
+      io.to(roomCode).emit('duel-ended', {
+        winner,
+        reason,
+        finalScores: room.scores,
+        finalTimes: room.times
+      });
+    }
+
+    // Clean up
+    duelTimers.delete(roomCode);
+    rooms.delete(roomCode);
+
+    console.log(`Duel ended in room ${roomCode}: ${reason}`);
+  };
+    // === Matchmaking Logic ===
 
 socket.on('cancel-matchmaking', () => {
   const user = userMap.get(socket.id);

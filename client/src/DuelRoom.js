@@ -102,14 +102,24 @@ const DuelRoom = () => {
     };
 
     const handleDuelEnded = ({ winner, reason, finalScores, finalTimes }) => {
-      console.log('🏁 Duel ended:', { winner, reason });
-      setGameEnded(true);
-      setWinner(winner);
-      setEndReason(reason);
-      setScores(finalScores);
-      setTimes(finalTimes);
-      setOutput(`🏁 GAME OVER!\n\n${reason}\n\nFinal Scores:\n${Object.entries(finalScores).map(([user, score]) => `${user}: ${score} test cases`).join('\n')}`);
-    };
+    console.log('🏁 Duel ended:', { winner, reason });
+    setGameEnded(true);
+    setWinner(winner);
+    setEndReason(reason);
+    setScores(finalScores);
+    setTimes(finalTimes);
+    
+    // Show different messages based on the ending reason
+    let gameOverMessage = `🏁 GAME OVER!\n\n${reason}\n\nFinal Scores:\n${Object.entries(finalScores).map(([user, score]) => `${user}: ${score} test cases`).join('\n')}`;
+    
+    if (reason.includes('solving all test cases')) {
+      gameOverMessage += '\n\n🎯 Perfect solution achieved!';
+    } else if (reason.includes('time limit')) {
+      gameOverMessage += '\n\n⏰ Time limit reached.';
+    }
+    
+    setOutput(gameOverMessage);
+  };
 
     const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
       console.log('🏃‍♂️ Opponent disconnected:', disconnectedPlayer);
@@ -179,54 +189,65 @@ const DuelRoom = () => {
   };
 
   const handleSubmit = async () => {
-    if (!problem || gameEnded || isSubmitting) {
-      if (gameEnded) setOutput('Game has ended!');
-      else if (!problem) setOutput('No problem loaded yet.');
-      return;
+  if (!problem || gameEnded || isSubmitting) {
+    if (gameEnded) setOutput('Game has ended!');
+    else if (!problem) setOutput('No problem loaded yet.');
+    return;
+  }
+
+  setIsSubmitting(true);
+  setOutput('🚀 Submitting your solution...\n\nRunning against all test cases. This may take a few moments.');
+
+  try {
+    const res = await fetch('http://localhost:5000/api/execute/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, problemId: problem.id, username, language }),
+    });
+
+    const data = await res.json();
+    const executionTime = data.time || 0;
+    
+    // Format submission result with detailed info
+    let formattedOutput = '';
+    if (data.verdict === 'Accepted' && data.passed === data.total) {
+      // Perfect score - game will end
+      formattedOutput = `🎉 PERFECT SOLUTION!\n\n✅ Passed ALL ${data.passed}/${data.total} test cases\n⏱️ Execution Time: ${executionTime.toFixed(3)}s\n🏆 Score: ${data.score || 0} points\n📊 Verdict: ${data.verdict}\n\n🏁 You solved the problem! Game ending...`;
+    } else if (data.verdict === 'Accepted') {
+      formattedOutput = `🎉 ACCEPTED!\n\n✅ Passed ${data.passed}/${data.total} test cases\n⏱️ Execution Time: ${executionTime.toFixed(3)}s\n🏆 Score: ${data.score || 0} points\n📊 Verdict: ${data.verdict}\n\nCongratulations! Your solution is correct.`;
+    } else {
+      formattedOutput = `❌ ${data.verdict.toUpperCase()}\n\n📊 Passed ${data.passed}/${data.total} test cases\n⏱️ Time: ${executionTime.toFixed(3)}s\n📄 Verdict: ${data.verdict}\n\n${data.verdict === 'Wrong Answer' ? 'Your solution produces incorrect output for some test cases.' : 
+        data.verdict === 'TLE' ? 'Your solution is too slow and exceeds the time limit.' :
+        data.verdict === 'Runtime Error' ? 'Your solution crashes during execution.' :
+        data.verdict === 'Compilation Error' ? 'There are errors in your code that prevent compilation.' :
+        'Please review your solution and try again.'}`;
     }
+    
+    setOutput(formattedOutput);
 
-    setIsSubmitting(true);
-    setOutput('🚀 Submitting your solution...\n\nRunning against all test cases. This may take a few moments.');
-
-    try {
-      const res = await fetch('http://localhost:5000/api/execute/submit', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, problemId: problem.id, username, language }),
+    if (socket) {
+      socket.emit('submission-result', {
+        roomCode,
+        username,
+        passed: data.passed,
+        total: data.total,
+        time: executionTime
       });
-
-      const data = await res.json();
-      const executionTime = data.time || 0;
-      
-      // Format submission result with detailed info
-      let formattedOutput = '';
-      if (data.verdict === 'Accepted') {
-        formattedOutput = `🎉 ACCEPTED!\n\n✅ Passed ${data.passed}/${data.total} test cases\n⏱️ Execution Time: ${executionTime.toFixed(3)}s\n🏆 Score: ${data.score || 0} points\n📊 Verdict: ${data.verdict}\n\nCongratulations! Your solution is correct.`;
-      } else {
-        formattedOutput = `❌ ${data.verdict.toUpperCase()}\n\n📊 Passed ${data.passed}/${data.total} test cases\n⏱️ Time: ${executionTime.toFixed(3)}s\n📄 Verdict: ${data.verdict}\n\n${data.verdict === 'Wrong Answer' ? 'Your solution produces incorrect output for some test cases.' : 
-          data.verdict === 'TLE' ? 'Your solution is too slow and exceeds the time limit.' :
-          data.verdict === 'Runtime Error' ? 'Your solution crashes during execution.' :
-          data.verdict === 'Compilation Error' ? 'There are errors in your code that prevent compilation.' :
-          'Please review your solution and try again.'}`;
-      }
-      
-      setOutput(formattedOutput);
-
-      if (socket) {
-        socket.emit('submission-result', {
-          roomCode,
-          username,
-          passed: data.passed,
-          total: data.total,
-          time: executionTime
-        });
-      }
-    } catch (error) {
-      setOutput(`❌ Submission Failed\n\nNetwork error: ${error.message}\n\nPlease check your connection and try again.`);
-    } finally {
-      setIsSubmitting(false);
     }
-  };
+
+    // If perfect score, show additional success feedback
+    if (data.verdict === 'Accepted' && data.passed === data.total) {
+      setTimeout(() => {
+        setOutput(prev => prev + '\n\n🎯 Waiting for game to end...');
+      }, 1000);
+    }
+
+  } catch (error) {
+    setOutput(`❌ Submission Failed\n\nNetwork error: ${error.message}\n\nPlease check your connection and try again.`);
+  } finally {
+    setIsSubmitting(false);
+  }
+};
 
   return (
     <div className="min-h-screen flex text-white">

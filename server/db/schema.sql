@@ -29,19 +29,33 @@ CREATE TABLE testcases (
     FOREIGN KEY (problem_id) REFERENCES problems(id) ON DELETE CASCADE
 );
 
+-- Update the duels table to include more detailed tracking
+DROP TABLE IF EXISTS duels;
+
 CREATE TABLE duels (
     id INT PRIMARY KEY AUTO_INCREMENT,
-    user1_id INT NOT NULL,
-    user2_id INT NOT NULL,
+    room_code VARCHAR(10) NOT NULL,
+    player1_id INT NOT NULL,
+    player2_id INT NOT NULL,
     problem_id INT NOT NULL,
-    winner_id INT,
+    winner_id INT NULL,
+    player1_score INT DEFAULT 0,
+    player2_score INT DEFAULT 0,
+    player1_time DECIMAL(10,3) DEFAULT 0,
+    player2_time DECIMAL(10,3) DEFAULT 0,
+    end_reason VARCHAR(255),
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ended_at TIMESTAMP NULL,
     
-    FOREIGN KEY (user1_id) REFERENCES users(id),
-    FOREIGN KEY (user2_id) REFERENCES users(id),
+    FOREIGN KEY (player1_id) REFERENCES users(id),
+    FOREIGN KEY (player2_id) REFERENCES users(id),
+    FOREIGN KEY (problem_id) REFERENCES problems(id),
     FOREIGN KEY (winner_id) REFERENCES users(id),
-    FOREIGN KEY (problem_id) REFERENCES problems(id)
+    
+    INDEX idx_player1 (player1_id),
+    INDEX idx_player2 (player2_id),
+    INDEX idx_winner (winner_id),
+    INDEX idx_room_code (room_code)
 );
 
 CREATE TABLE submissions (
