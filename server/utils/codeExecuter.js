@@ -75,27 +75,20 @@ function executeCode(code, input, language) {
       fs.writeFileSync(filepath, code);
       fs.writeFileSync(inputPath, input || '');
 
-      // Docker command with no maxBuffer limit since we're using files
-      const dockerCmd = `docker run --rm --network none -v "${folder}:/code" --memory=512m --cpus="1.0" --ulimit nproc=100 --read-only --tmpfs /tmp ${config.image}`;
+      // Stricter Docker limits for catching infinite loops
+      const dockerCmd = `docker run --rm --network none -v "${folder}:/code" --memory=128m --cpus="0.5" --ulimit nproc=50 --read-only --tmpfs /tmp ${config.image}`;
 
       console.log(`🐳 Executing: ${dockerCmd}`);
-      console.log(`📁 Temp folder: ${folder}`);
-      console.log(`📄 Input file contents: "${fs.readFileSync(inputPath, 'utf-8')}"`);
 
       exec(dockerCmd, { 
-        timeout: 30000, // 30 seconds
+        timeout: 5000, // 5 seconds total Docker timeout
         killSignal: 'SIGKILL'
-        // No maxBuffer since we're reading from files
       }, (err, stdout, stderr) => {
         let executionTime = 0;
         let exitCode = null;
         let programOutput = '';
         let verdict = 'Runtime Error';
 
-        console.log(`📤 Docker stdout: "${stdout}"`);
-        console.log(`📤 Docker stderr: "${stderr}"`);
-
-        // Replace the section where you read the output file
         try {
           // Check what files exist in the folder
           const filesInFolder = fs.readdirSync(folder);
@@ -121,71 +114,71 @@ function executeCode(code, input, language) {
               } else if (line.startsWith('EXIT_CODE:')) {
                 exitCode = parseInt(line.substring(10).trim());
                 console.log(`🚪 Exit code: ${exitCode}`);
-              } else if (line.trim() !== '') { // Only add non-empty lines
+              } else if (line.trim() !== '') {
                 outputLines.push(line);
               }
             }
             
             programOutput = outputLines.join('\n').trim();
             
-            // Check output size (limit to 50MB in file)
-            const outputSizeBytes = Buffer.byteLength(programOutput, 'utf8');
-            if (outputSizeBytes > 50 * 1024 * 1024) { // 50MB
-              return resolve({
-                verdict: 'Runtime Error',
-                output: `Output too large (${(outputSizeBytes / (1024 * 1024)).toFixed(1)}MB). Maximum allowed: 50MB.`,
-                time: executionTime
-              });
-            }
-            
-            console.log(`📄 Program output: "${programOutput}"`);
-            console.log(`📊 Output size: ${(outputSizeBytes / 1024).toFixed(1)}KB`);
-            
           } else {
-            console.warn('⚠️ No output file found, falling back to stdout/stderr');
+            console.warn('⚠️ No output file found, using Docker stdout/stderr');
             programOutput = stdout || stderr || 'No output produced';
-            
-            // Try to extract time from stderr if available
-            if (stderr) {
-              const timeMatch = stderr.match(/TIME:([0-9.]+)/);
-              if (timeMatch) {
-                executionTime = parseFloat(timeMatch[1]);
-                console.log(`⏱️ Extracted time from stderr: ${executionTime}s`);
-              }
-            }
           }
 
-          // Determine verdict based on exit code and errors
+          // Better verdict determination with proper TLE detection
           if (err) {
             console.log(`💥 Docker execution error:`, err.message);
-            if (err.killed || err.signal === 'SIGTERM' || err.signal === 'SIGKILL') {
+            console.log(`💥 Error signal:`, err.signal);
+            console.log(`💥 Error killed:`, err.killed);
+            
+            // Check for timeout/TLE conditions
+            if (err.killed || err.signal === 'SIGTERM' || err.signal === 'SIGKILL' || 
+                exitCode === 124 || exitCode === 137 || // timeout exit codes
+                programOutput.includes('killed') || programOutput.includes('timeout')) {
               verdict = 'TLE';
-              programOutput = 'Time Limit Exceeded (30s)';
-              executionTime = 30.0;
+              programOutput = 'Time Limit Exceeded (2s)';
+              executionTime = 2.0;
             } else if (err.message && err.message.includes('maxBuffer exceeded')) {
               verdict = 'Runtime Error';
               programOutput = 'Output size limit exceeded';
             } else {
-              // Check if it's a compilation error
-              if ((stderr && stderr.includes('error')) || programOutput.includes('error') || programOutput.includes('Compilation failed')) {
+              // Check compilation vs runtime error
+              if (programOutput.includes('error:') || programOutput.includes('Error:') || 
+                  programOutput.includes('Compilation failed') || stderr.includes('error')) {
                 verdict = 'Compilation Error';
-                programOutput = stderr || programOutput;
+                programOutput = stderr || programOutput || 'Compilation failed';
               } else {
                 verdict = 'Runtime Error';
                 programOutput = stderr || err.message || programOutput || 'Unknown runtime error';
               }
             }
-          } else if (exitCode === 0) {
-            verdict = 'Success';
-          } else if (exitCode !== null && exitCode !== 0) {
-            // Non-zero exit code indicates error
-            if (programOutput.includes('error:') || programOutput.includes('Compilation failed')) {
-              verdict = 'Compilation Error';
-            } else {
-              verdict = 'Runtime Error';
-            }
           } else {
-            verdict = 'Success'; // Default to success if no clear error
+            // Check exit code for TLE detection
+            if (exitCode === 124 || exitCode === 137) {
+              // Exit code 124 = timeout, 137 = killed by SIGKILL
+              verdict = 'TLE';
+              programOutput = 'Time Limit Exceeded (2s)';
+              executionTime = 2.0;
+            } else if (exitCode === 0) {
+              verdict = 'Success';
+            } else if (exitCode !== null && exitCode !== 0) {
+              // Non-zero exit code indicates error
+              if (programOutput.includes('error:') || programOutput.includes('Compilation failed')) {
+                verdict = 'Compilation Error';
+              } else {
+                verdict = 'Runtime Error';
+              }
+            } else {
+              verdict = 'Success';
+            }
+          }
+
+          // Additional check for programs that run too long but don't get killed
+          if (executionTime >= 1.8) { // Close to our 2s limit
+            verdict = 'TLE';
+            programOutput = 'Time Limit Exceeded (2s)';
+            executionTime = 2.0;
           }
 
         } catch (fileError) {
@@ -201,13 +194,13 @@ function executeCode(code, input, language) {
           }
         }
 
-          console.log(`${verdict === 'Success' ? '✅' : '❌'} Final verdict: ${verdict}. Time: ${executionTime}s. Output: "${programOutput.substring(0, 100)}..."`);
+        console.log(`${verdict === 'Success' ? '✅' : '❌'} Final verdict: ${verdict}. Time: ${executionTime}s. Exit code: ${exitCode}`);
                 
-          resolve({
-            verdict,
-            output: programOutput,
-            time: executionTime
-          });
+        resolve({
+          verdict,
+          output: programOutput,
+          time: executionTime
+        });
       });
 
     } catch (error) {
