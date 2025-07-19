@@ -3,7 +3,7 @@ import { User, Swords, Users, LogOut } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { isAuthenticated } from './utils/isAuthenticated';
-
+import { API_ENDPOINTS } from './config/api';
 const Home = () => {
   const navigate = useNavigate();
   const [topPlayers, setTopPlayers] = useState([]);
@@ -12,7 +12,7 @@ const Home = () => {
   useEffect(() => {
     const fetchLeaderboard = async () => {
       try {
-        const res = await axios.get('http://localhost:5000/api/leaderboard/top');
+        const res = await axios.get(API_ENDPOINTS.LEADERBOARD_TOP);
         setTopPlayers(res.data);
       } catch (err) {
         console.error("Error fetching leaderboard:", err);

@@ -5,7 +5,7 @@ import Editor from '@monaco-editor/react';
 // import { Clock, Trophy, AlertCircle, Loader2, ExitIcon } from 'lucide-react';
 import { Clock, Trophy, AlertCircle, Loader2, LogOut } from 'lucide-react';
 import { useSocket } from './context/SocketContext';
-
+import { API_ENDPOINTS } from './config/api';
 const languageTemplates = {
   cpp: `#include <iostream>
 using namespace std;
@@ -248,7 +248,7 @@ const DuelRoom = () => {
     setOutput('🔄 Running your code...\n\nPlease wait while we execute your solution with custom input.');
 
     try {
-      const res = await fetch('http://localhost:5000/api/execute/custom', {
+      const res = await fetch(API_ENDPOINTS.EXECUTE_CUSTOM, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, input: customInput, language }),
@@ -283,7 +283,7 @@ const DuelRoom = () => {
     setOutput('🚀 Submitting your solution...\n\nRunning against all test cases. This may take a few moments.');
 
     try {
-      const res = await fetch('http://localhost:5000/api/execute/submit', {
+      const res = await fetch(API_ENDPOINTS.EXECUTE_SUBMIT, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ code, problemId: problem.id, username, language }),

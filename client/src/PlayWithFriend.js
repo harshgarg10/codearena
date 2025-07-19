@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import { ArrowRight, Users, Copy } from 'lucide-react';
-
+import { API_ENDPOINTS } from './config/api';
 const PlayWithFriend = () => {
   const navigate = useNavigate();
   const [roomCode, setRoomCode] = useState('');
@@ -14,7 +14,7 @@ const PlayWithFriend = () => {
 
   useEffect(() => {
     // Create socket connection inside the component
-    const newSocket = io('http://localhost:5000');
+    const newSocket = io(API_ENDPOINTS.SOCKET_URL);
     setSocket(newSocket);
 
     newSocket.on('connect', () => {

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 import { useNavigate } from 'react-router-dom'; 
-
+import { API_ENDPOINTS } from './config/api';
 const Signup = ({ setView }) => {
     const navigate = useNavigate();
   const [formData, setFormData] = useState({
@@ -19,7 +19,7 @@ const Signup = ({ setView }) => {
   const handleSubmit = async e => {
   e.preventDefault();
   try {
-    const res = await axios.post('http://localhost:5000/api/auth/signup', formData);
+    const res = await axios.post(API_ENDPOINTS.SIGNUP, formData);
 
     setMessage(res.data.message || 'Signup successful!');
     setSuccess(true);

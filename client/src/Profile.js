@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { jwtDecode } from 'jwt-decode';
 import { User, Home, Trophy, Target, Clock } from 'lucide-react';
 import axios from 'axios';
-
+import { API_ENDPOINTS } from './config/api';
 const Profile = () => {
   const [stats, setStats] = useState(null);
   const [error, setError] = useState('');
@@ -19,8 +19,7 @@ const Profile = () => {
           }
 
           const decoded = jwtDecode(token);
-          axios
-            .get('http://localhost:5000/api/profile/stats', {
+          axios.get(API_ENDPOINTS.PROFILE_STATS, {
               headers: { Authorization: `Bearer ${token}` },
             })
             .then((response) => {
