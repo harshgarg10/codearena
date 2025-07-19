@@ -2,6 +2,7 @@ require('dotenv').config();
 const db = require('../config/db');
 
 const migrateDuelsTable = async () => {
+    
   try {
     console.log('🔄 Migrating duels table...');
     
@@ -43,7 +44,10 @@ const migrateDuelsTable = async () => {
       await db.execute('ALTER TABLE duels CHANGE user2_id player2_id INT NOT NULL');
       console.log('✅ Renamed user2_id to player2_id');
     }
-    
+    if (!existingColumns.includes('is_ranked')) {
+        await db.execute('ALTER TABLE duels ADD COLUMN is_ranked BOOLEAN DEFAULT TRUE');
+        console.log('✅ Added is_ranked column');
+    }
     // Add indexes
     try {
       await db.execute('CREATE INDEX idx_player1 ON duels (player1_id)');

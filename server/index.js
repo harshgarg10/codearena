@@ -59,10 +59,76 @@ io.on('connection', (socket) => {
   // === Play With Friend ===
   socket.on('create-room', ({ username }) => {
     const roomCode = generateRoomCode();
-    rooms.set(roomCode, { players: [username], creator: username });
+    const room = {
+      code: roomCode,
+      players: [username],
+      creator: username,
+      problem: null,
+      scores: {},
+      times: {},
+      isRanked: false // Mark friend duels as unranked
+    };
+    
+    rooms.set(roomCode, room);
     socket.join(roomCode);
+    
+    console.log(`Room ${roomCode} created by ${username} (unranked)`);
     socket.emit('room-created', { roomCode });
-    console.log(`🟣 Room ${roomCode} created by ${username}`);
+  });
+
+  // Add this event handler in the socket.io section
+  socket.on('player-forfeit', async ({ roomCode, username }) => {
+    console.log(`🏃‍♂️ ${username} is forfeiting duel in room ${roomCode}`);
+    
+    const room = rooms.get(roomCode);
+    if (!room) return;
+
+    // Clear the duel timer since game is ending
+    const timer = duelTimers.get(roomCode);
+    if (timer) {
+      clearTimeout(timer);
+      duelTimers.delete(roomCode);
+    }
+
+    // Determine the winner (the opponent)
+    const [player1, player2] = room.players;
+    const winner = player1 === username ? player2 : player1;
+    const reason = `🏃‍♂️ ${username} forfeited the match. ${winner} wins!`;
+
+    // Save duel result to database
+    try {
+      const { ratingChanges } = await saveDuelResult({
+        roomCode,
+        players: room.players,
+        problemId: room.problem?.id,
+        scores: room.scores,
+        times: room.times,
+        winner,
+        endReason: reason,
+        isRanked: room.isRanked
+      });
+
+      io.to(roomCode).emit('duel-ended', {
+        winner,
+        reason,
+        finalScores: room.scores,
+        finalTimes: room.times,
+        ratingChanges,
+        isRnaked: room.isRanked
+      });
+    } catch (error) {
+      console.error('Failed to save forfeit result:', error);
+      // Still end the game even if saving fails
+      io.to(roomCode).emit('duel-ended', {
+        winner,
+        reason,
+        finalScores: room.scores,
+        finalTimes: room.times
+      });
+    }
+
+    rooms.delete(roomCode);
+    console.log(`Duel ended due to forfeit in room ${roomCode}: ${reason}`);
   });
 
   socket.on('join-room', async ({ roomCode, username }) => {
@@ -150,7 +216,8 @@ io.on('connection', (socket) => {
           scores: room.scores,
           times: room.times,
           winner: username,
-          endReason: reason
+          endReason: reason,
+          isRanked: room.isRanked
         });
 
         io.to(roomCode).emit('duel-ended', {
@@ -158,7 +225,8 @@ io.on('connection', (socket) => {
           reason,
           finalScores: room.scores,
           finalTimes: room.times,
-          ratingChanges
+          ratingChanges,
+          isRanked: room.isRanked
         });
       } catch (error) {
         console.error('Failed to save duel result:', error);
@@ -225,7 +293,8 @@ io.on('connection', (socket) => {
         scores: room.scores,
         times: room.times,
         winner,
-        endReason: reason
+        endReason: reason,
+        isRanked: room.isRanked
       });
 
       io.to(roomCode).emit('duel-ended', {
@@ -233,7 +302,8 @@ io.on('connection', (socket) => {
         reason,
         finalScores: room.scores,
         finalTimes: room.times,
-        ratingChanges
+        ratingChanges,
+        isRanked: room.isRanked
       });
     } catch (error) {
       console.error('Failed to save duel result:', error);
@@ -292,14 +362,15 @@ socket.on('find-match', async ({ username, rating }) => {
     const problem = await getRandomProblem();
     
     // Create room with complete data BEFORE emitting match-found
-    rooms.set(roomCode, { 
-      players: [user.username, match.username], 
-      creator: user.username, 
-      problem: problem,
-      scores: { [user.username]: 0, [match.username]: 0 },
-      times: { [user.username]: 0, [match.username]: 0 },
-      startTime: Date.now()
-    });
+    const room = {
+      code: roomCode,
+      players: [user1, user2],
+      problem,
+      scores: { [user1]: 0, [user2]: 0 },
+      times: { [user1]: 0, [user2]: 0 },
+      isRanked: true // Mark online matchmaking duels as ranked
+    };
+    rooms.set(roomCode, room);
 
     // Start 30-minute timer for the duel
     const timer = setTimeout(() => {

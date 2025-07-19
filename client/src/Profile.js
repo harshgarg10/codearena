@@ -156,6 +156,7 @@ const Profile = () => {
           <div className="space-y-3">
             {stats.recentDuels.map((duel, i) => (
               <div key={i} className="bg-gray-900 rounded-lg p-4 border border-gray-700 hover:border-gray-600 transition">
+                // In the recent duels display section, add ranked indicator:
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <div className={`w-3 h-3 rounded-full ${
@@ -163,6 +164,11 @@ const Profile = () => {
                       duel.result === 'Draw' ? 'bg-yellow-400' : 'bg-red-400'
                     }`}></div>
                     <span className="font-medium text-white">vs {duel.opponent}</span>
+                    {!duel.is_ranked && (
+                      <span className="text-xs bg-gray-700 text-gray-300 px-2 py-1 rounded">
+                        Friendly
+                      </span>
+                    )}
                   </div>
                   <span className={`text-sm font-semibold px-2 py-1 rounded ${
                     duel.result === 'Won' ? 'bg-green-900 text-green-300' : 

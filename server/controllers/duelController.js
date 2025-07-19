@@ -1,8 +1,8 @@
 const db = require('../config/db');
 
-const saveDuelResult = async ({ roomCode, players, problemId, scores, times, winner, endReason }) => {
+const saveDuelResult = async ({ roomCode, players, problemId, scores, times, winner, endReason, isRanked = true }) => {
   try {
-    console.log(`💾 Saving duel result for room ${roomCode}`);
+    console.log(`💾 Saving duel result for room ${roomCode} (${isRanked ? 'Ranked' : 'Unranked'})`);
     
     // Get user IDs
     const [player1Rows] = await db.execute('SELECT id, rating FROM users WHERE username = ?', [players[0]]);
@@ -27,8 +27,8 @@ const saveDuelResult = async ({ roomCode, players, problemId, scores, times, win
     // Save duel result
     const [result] = await db.execute(
       `INSERT INTO duels (room_code, player1_id, player2_id, problem_id, winner_id, 
-       player1_score, player2_score, player1_time, player2_time, end_reason, ended_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+       player1_score, player2_score, player1_time, player2_time, end_reason, ended_at, is_ranked)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
       [
         roomCode,
         player1Id,
@@ -39,17 +39,27 @@ const saveDuelResult = async ({ roomCode, players, problemId, scores, times, win
         scores[players[1]] || 0,
         times[players[0]] || 0,
         times[players[1]] || 0,
-        endReason
+        endReason,
+        isRanked
       ]
     );
 
     const duelId = result.insertId;
 
-    // Update user ratings based on result
-    const ratingChanges = await updatePlayerRatings(
-      player1Id, player2Id, winnerId, 
-      players, player1Rating, player2Rating
-    );
+    // Only update ratings for ranked games
+    let ratingChanges = null;
+    if (isRanked) {
+      ratingChanges = await updatePlayerRatings(
+        player1Id, player2Id, winnerId, 
+        players, player1Rating, player2Rating
+      );
+    } else {
+      console.log(`📝 Unranked game - no rating changes applied`);
+      ratingChanges = {
+        [players[0]]: 0,
+        [players[1]]: 0
+      };
+    }
 
     console.log(`✅ Duel result saved: ${roomCode} (ID: ${duelId})`);
     return { duelId, ratingChanges };
