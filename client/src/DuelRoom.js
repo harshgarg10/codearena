@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import io from 'socket.io-client';
 import Editor from '@monaco-editor/react';
-import { Clock, Trophy, AlertCircle } from 'lucide-react';
+import { Clock, Trophy, AlertCircle, Loader2 } from 'lucide-react';
 import { useSocket } from './context/SocketContext';
+
 const languageTemplates = {
   cpp: `#include <iostream>
 using namespace std;
@@ -39,6 +40,10 @@ const DuelRoom = () => {
   const [output, setOutput] = useState('');
   const [opponent, setOpponent] = useState('Waiting...');
   const [language, setLanguage] = useState('cpp');
+  
+  // Loading states
+  const [isRunning, setIsRunning] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Timer and game state
   const [timeLeft, setTimeLeft] = useState(30 * 60); // 30 minutes in seconds
@@ -103,10 +108,10 @@ const DuelRoom = () => {
       setEndReason(reason);
       setScores(finalScores);
       setTimes(finalTimes);
-  setOutput(`🏁 GAME OVER!\n\n${reason}\n\nFinal Scores:\n${Object.entries(finalScores).map(([user, score]) => `${user}: ${score} test cases`).join('\n')}`);
-};
+      setOutput(`🏁 GAME OVER!\n\n${reason}\n\nFinal Scores:\n${Object.entries(finalScores).map(([user, score]) => `${user}: ${score} test cases`).join('\n')}`);
+    };
 
-const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
+    const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
       console.log('🏃‍♂️ Opponent disconnected:', disconnectedPlayer);
       setGameEnded(true);
       setOutput(`🏃‍♂️ ${disconnectedPlayer} disconnected. You win by default!`);
@@ -137,11 +142,16 @@ const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
       socket.off('duel-error', handleDuelError);
     };
   }, [socket, roomCode, username, navigate]);
+
   const runCustomTest = async () => {
-    if (!problem || gameEnded) {
-      setOutput(gameEnded ? 'Game has ended!' : 'No problem loaded yet.');
+    if (!problem || gameEnded || isRunning) {
+      if (gameEnded) setOutput('Game has ended!');
+      else if (!problem) setOutput('No problem loaded yet.');
       return;
     }
+
+    setIsRunning(true);
+    setOutput('🔄 Running your code...\n\nPlease wait while we execute your solution with custom input.');
 
     try {
       const res = await fetch('http://localhost:5000/api/execute/custom', {
@@ -151,20 +161,34 @@ const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
       });
 
       const data = await res.json();
-      setOutput(data.output || 'Something went wrong');
+      
+      // Format the output with execution info
+      let formattedOutput = '';
+      if (data.verdict === 'Success') {
+        formattedOutput = `✅ Execution Successful\n⏱️ Time: ${(data.time || 0).toFixed(3)}s\n📄 Verdict: ${data.verdict}\n\n--- Output ---\n${data.output || 'No output'}`;
+      } else {
+        formattedOutput = `❌ Execution Failed\n📄 Verdict: ${data.verdict}\n⏱️ Time: ${(data.time || 0).toFixed(3)}s\n\n--- Error Details ---\n${data.output || 'No details available'}`;
+      }
+      
+      setOutput(formattedOutput);
     } catch (error) {
-      setOutput('Error running code: ' + error.message);
+      setOutput(`❌ Network Error\n\nFailed to execute code: ${error.message}\n\nPlease check your connection and try again.`);
+    } finally {
+      setIsRunning(false);
     }
   };
 
   const handleSubmit = async () => {
-    if (!problem || gameEnded) {
-      setOutput(gameEnded ? 'Game has ended!' : 'No problem loaded yet.');
+    if (!problem || gameEnded || isSubmitting) {
+      if (gameEnded) setOutput('Game has ended!');
+      else if (!problem) setOutput('No problem loaded yet.');
       return;
     }
 
+    setIsSubmitting(true);
+    setOutput('🚀 Submitting your solution...\n\nRunning against all test cases. This may take a few moments.');
+
     try {
-      // const startTime = Date.now();
       const res = await fetch('http://localhost:5000/api/execute/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -174,7 +198,19 @@ const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
       const data = await res.json();
       const executionTime = data.time || 0;
       
-      setOutput(`✅ Passed ${data.passed}/${data.total} test cases\n⏱️ Time: ${executionTime.toFixed(2)}s\n📊 Verdict: ${data.verdict}`);
+      // Format submission result with detailed info
+      let formattedOutput = '';
+      if (data.verdict === 'Accepted') {
+        formattedOutput = `🎉 ACCEPTED!\n\n✅ Passed ${data.passed}/${data.total} test cases\n⏱️ Execution Time: ${executionTime.toFixed(3)}s\n🏆 Score: ${data.score || 0} points\n📊 Verdict: ${data.verdict}\n\nCongratulations! Your solution is correct.`;
+      } else {
+        formattedOutput = `❌ ${data.verdict.toUpperCase()}\n\n📊 Passed ${data.passed}/${data.total} test cases\n⏱️ Time: ${executionTime.toFixed(3)}s\n📄 Verdict: ${data.verdict}\n\n${data.verdict === 'Wrong Answer' ? 'Your solution produces incorrect output for some test cases.' : 
+          data.verdict === 'TLE' ? 'Your solution is too slow and exceeds the time limit.' :
+          data.verdict === 'Runtime Error' ? 'Your solution crashes during execution.' :
+          data.verdict === 'Compilation Error' ? 'There are errors in your code that prevent compilation.' :
+          'Please review your solution and try again.'}`;
+      }
+      
+      setOutput(formattedOutput);
 
       if (socket) {
         socket.emit('submission-result', {
@@ -186,7 +222,9 @@ const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
         });
       }
     } catch (error) {
-      setOutput('Error submitting code: ' + error.message);
+      setOutput(`❌ Submission Failed\n\nNetwork error: ${error.message}\n\nPlease check your connection and try again.`);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -290,7 +328,7 @@ const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
               id="language"
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-              disabled={gameEnded}
+              disabled={gameEnded || isRunning || isSubmitting}
               className="bg-gray-700 text-white px-3 py-1 rounded border border-gray-600 focus:border-purple-500 focus:outline-none disabled:opacity-50"
             >
               <option value="cpp">C++</option>
@@ -307,14 +345,14 @@ const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
               language={language === 'cpp' ? 'cpp' : language}
               theme="vs-dark"
               value={code}
-              onChange={(value) => !gameEnded && setCode(value || '')}
+              onChange={(value) => !gameEnded && !isRunning && !isSubmitting && setCode(value || '')}
               options={{
                 minimap: { enabled: false },
                 scrollBeyondLastLine: false,
                 automaticLayout: true,
                 fontSize: 14,
                 fontFamily: 'Consolas, Monaco, monospace',
-                readOnly: gameEnded
+                readOnly: gameEnded || isRunning || isSubmitting
               }}
             />
           </div>
@@ -323,9 +361,9 @@ const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
             <label className="block text-white text-sm mb-2">Custom Input (optional):</label>
             <textarea
               value={customInput}
-              onChange={(e) => !gameEnded && setCustomInput(e.target.value)}
-              placeholder={gameEnded ? "Game has ended" : "Enter your custom input here..."}
-              disabled={gameEnded}
+              onChange={(e) => !gameEnded && !isRunning && !isSubmitting && setCustomInput(e.target.value)}
+              placeholder={gameEnded ? "Game has ended" : isRunning || isSubmitting ? "Code is running..." : "Enter your custom input here..."}
+              disabled={gameEnded || isRunning || isSubmitting}
               className="w-full bg-gray-800 p-3 rounded-lg h-20 text-white resize-none border border-gray-700 focus:border-purple-500 focus:outline-none custom-scrollbar disabled:opacity-50"
             />
           </div>
@@ -333,23 +371,40 @@ const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
           <div className="flex gap-4 mb-4 flex-shrink-0">
             <button
               onClick={runCustomTest}
-              className="flex-1 bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!problem || gameEnded}
+              className="flex-1 bg-blue-600 px-6 py-3 rounded-lg hover:bg-blue-700 transition font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={!problem || gameEnded || isRunning || isSubmitting}
             >
-              Run Test
+              {isRunning ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Running...
+                </>
+              ) : (
+                'Run Test'
+              )}
             </button>
             <button
               onClick={handleSubmit}
-              className="flex-1 bg-green-600 px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed"
-              disabled={!problem || gameEnded}
+              className="flex-1 bg-green-600 px-6 py-3 rounded-lg hover:bg-green-700 transition font-semibold text-white disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              disabled={!problem || gameEnded || isRunning || isSubmitting}
             >
-              Submit
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'Submit'
+              )}
             </button>
           </div>
 
           {output && (
             <div className="bg-gray-800 rounded-lg border border-gray-700 flex flex-col min-h-0 flex-shrink-0 max-h-48">
-              <h4 className="font-semibold text-yellow-400 p-4 pb-2 flex-shrink-0">Output:</h4>
+              <h4 className="font-semibold text-yellow-400 p-4 pb-2 flex-shrink-0 flex items-center gap-2">
+                {(isRunning || isSubmitting) && <Loader2 className="w-4 h-4 animate-spin" />}
+                Output:
+              </h4>
               <div className="flex-1 overflow-y-auto custom-scrollbar px-4 pb-4">
                 <pre className="whitespace-pre-wrap text-gray-300 text-sm">
                   {output}
