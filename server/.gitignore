@@ -1,7 +1,20 @@
-
+# Environment and secrets
 .env
-node_modules/
+.env.local
+.env.production
+.env.test
+
+# Security logs
+logs/
 *.log
-*.env.local
-npm-debug.log*
+
+# Temporary files
+temp/
+tmp/
+
+# Node modules
+node_modules/
+
+# System files
 .DS_Store
+Thumbs.db

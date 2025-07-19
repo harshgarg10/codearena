@@ -1,5 +1,5 @@
 const db = require('../config/db');
-
+const { sanitizeResponse } = require('../utils/sanitizeResponse');
 exports.getUserStats = async (req, res) => {
   const userId = req.user.userId;
 
@@ -111,21 +111,21 @@ exports.getUserStats = async (req, res) => {
       time_type: typeof d.your_time
     })));
 
-    res.json({
+    const responseData = {
       username: user.username,
       rating: user.rating,
-      // Duel stats
       totalDuels,
       wins,
       losses: duelStats[0].losses || 0,
       draws: duelStats[0].draws || 0,
       winRate,
-      recentDuels,
-      // Submission stats
+      recentDuels: sanitizeResponse(recentDuels), 
       totalSubmissions: totalSubs,
       acceptedSubmissions: acceptedSubs,
       acceptanceRate
-    });
+    };
+
+    res.json(sanitizeResponse(responseData)); 
 
   } catch (err) {
     console.error('Profile controller error:', err);

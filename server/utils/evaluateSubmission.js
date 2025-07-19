@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const db = require('../config/db');
 const { executeCode } = require('./codeExecuter');
-
+const { secureFileRead, isValidTestcasePath } = require('./secureFileAccess');
 const compareOutputs = (actual, expected) => {
   // Trim both outputs
   const actualTrimmed = actual.trim();
@@ -126,10 +126,16 @@ const evaluateSubmission = async ({ code, language, username, problemId, duelId 
           console.error(`❌ Output file not found: ${outputPath}`);
           throw new Error(`Output file not found: ${outputPath}`);
         }
+        if (!isValidTestcasePath(inputPath) || !isValidTestcasePath(outputPath)) {
+          console.error(`🚨 Invalid testcase file paths detected`);
+          throw new Error('Invalid testcase configuration');
+        }
         
-        const input = fs.readFileSync(inputPath, 'utf-8').trim();
-        const expectedOutput = fs.readFileSync(outputPath, 'utf-8').trim();
-        
+        console.log(`📂 Reading testcase files (secured)`);
+
+        const input = secureFileRead(inputPath).trim();
+        const expectedOutput = secureFileRead(outputPath).trim();
+
         console.log(`📥 Input: "${input}"`);
         console.log(`📤 Expected: "${expectedOutput}"`);
 

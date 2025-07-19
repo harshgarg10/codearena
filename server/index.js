@@ -30,10 +30,51 @@ const io = socketIo(server, {
 });
 
 const PORT = process.env.PORT || 5000;
+app.use('/testcases', (req, res) => {
+  console.log(`🚨 Blocked attempt to access testcases: ${req.path}`);
+  res.status(403).json({ error: 'Access forbidden' });
+});
 
+app.use('/temp', (req, res) => {
+  console.log(`🚨 Blocked attempt to access temp files: ${req.path}`);
+  res.status(403).json({ error: 'Access forbidden' });
+});
+
+// Block .txt file access using middleware (CORRECT way)
+app.use((req, res, next) => {
+  if (req.path.endsWith('.txt')) {
+    console.log(`🚨 Blocked attempt to access .txt file: ${req.path}`);
+    return res.status(403).json({ error: 'Access forbidden' });
+  }
+  next();
+});
 // Middleware
 app.use(cors());
 app.use(express.json());
+const helmet = require('helmet');
+const { securityLogger } = require('./middleware/securityMonitor');
+app.use(securityLogger);
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'", "'unsafe-inline'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https:"],
+    },
+  },
+  crossOriginEmbedderPolicy: false
+}));
+
+// Prevent information disclosure
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('X-XSS-Protection', '1; mode=block');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  next();
+});
 
 // Routes
 app.use('/api/auth', authRoutes);
@@ -41,6 +82,34 @@ app.use('/api/leaderboard', leaderboardRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/execute', executeRoutes);
 
+// Add rate limiting imports and setup AFTER the routes
+const rateLimit = require('express-rate-limit');
+
+// Rate limiting for code execution
+const executeLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 15, // 15 requests per minute per IP
+  message: {
+    error: 'Too many code execution requests. Please wait before trying again.',
+    retryAfter: 60
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+
+// Rate limiting for submissions
+const submitLimit = rateLimit({
+  windowMs: 60 * 1000, // 1 minute  
+  max: 10, // 10 submissions per minute per IP
+  message: {
+    error: 'Too many submissions. Please wait before submitting again.',
+    retryAfter: 60
+  }
+});
+
+// Apply rate limiting to execution routes (ONLY ONCE)
+app.use('/api/execute/custom', executeLimit);
+app.use('/api/execute/submit', submitLimit);
 // ====== Socket.io State & Helpers ======
 const rooms = new Map();
 const MatchQueue = require('./matchQueue');
@@ -338,7 +407,6 @@ socket.on('cancel-matchmaking', () => {
   socket.emit('match-cancelled');
   console.log(`❌ Matchmaking cancelled by ${socket.id}`);
 });
-  // Update the matchmaking logic in your server/index.js
 socket.on('find-match', async ({ username, rating }) => {
   const user = { username, socketId: socket.id, rating };
 
@@ -360,6 +428,10 @@ socket.on('find-match', async ({ username, rating }) => {
 
     const roomCode = generateRoomCode();
     const problem = await getRandomProblem();
+    
+    // Fix: Define user1 and user2 properly
+    const user1 = user.username;      // Current user
+    const user2 = match.username;     // Matched user
     
     // Create room with complete data BEFORE emitting match-found
     const room = {
@@ -403,7 +475,6 @@ socket.on('find-match', async ({ username, rating }) => {
   } else {
     // No match found - add to both userMap AND matchQueue
     console.log(`➕ Adding ${username} to matchmaking queue`);
-    
     userMap.set(socket.id, user);
     matchQueue.insert(user);
 
@@ -424,7 +495,6 @@ socket.on('find-match', async ({ username, rating }) => {
     userTimeouts.set(socket.id, timeoutId);
   }
 });
-
 // Update the join-duel-room handler to be more robust
 socket.on('join-duel-room', ({ roomCode, username }) => {
   console.log(`🎮 ${username} attempting to join duel room ${roomCode}`);
