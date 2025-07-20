@@ -5,7 +5,13 @@
 Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeArena delivers fast-paced gameplay, fair matchmaking, and secure live execution for competitive developers.
 
 ---
+### 🖼️ Screenshot of CodeArena Dashboard
 
+![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/DuelScreen.png)
+
+![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/ProfileScreen.png)
+
+---
 ## Features
 
 ### Game Modes
