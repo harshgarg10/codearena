@@ -55,7 +55,7 @@ const Home = () => {
     <div className="min-h-screen bg-gray-950 text-white px-6 py-4">
       {/* Header */}
       <div className="flex justify-between items-center mb-10">
-        <h1 className="text-3xl font-bold text-purple-500">AlgoArena</h1>
+        <h1 className="text-3xl font-bold text-purple-500">CodeArena</h1>
         <div className="flex items-center gap-4">
           <button
             onClick={handleProfileClick}
