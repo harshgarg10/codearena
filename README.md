@@ -167,6 +167,11 @@ $ git push origin feature/new-feature
 
 ---
 
+## 📝 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
 **Built with ❤️**
 
 If you love it, star it!
