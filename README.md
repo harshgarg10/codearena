@@ -50,35 +50,7 @@ Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeAren
 * Live queue monitoring and fair pairing
 
 ---
-🧰 Tech Stack
-💻 Frontend
-React.js — UI Framework
 
-Monaco Editor — In-browser VS Code experience
-
-Socket.IO Client — Real-time communication
-
-Axios — API interaction
-
-🔧 Backend
-Node.js + Express.js — REST API and WebSocket server
-
-Socket.IO — Real-time matchmaking and duel sync
-
-MySQL (hosted on Railway) — Persistent storage
-
-JWT — Authentication and session management
-
-Bintrees (Red-Black Tree) — Efficient matchmaking queue
-
-⚙️ Code Execution Engine
-Child Process (Docker-free) — Code sandboxing
-
-Linux / Windows runtime — Language-specific handling
-
-Output Sanitization — Prevents unsafe responses
-
----
 ## Quick Start
 
 ### Prerequisites
