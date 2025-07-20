@@ -5,7 +5,13 @@
 Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeArena delivers fast-paced gameplay, fair matchmaking, and secure live execution for competitive developers.
 
 ---
+### 🖼️ Screenshot of CodeArena Dashboard
 
+![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/DuelScreen.png)
+
+![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/ProfileScreen.png)
+
+---
 ## Features
 
 ### Game Modes
@@ -146,7 +152,12 @@ class MatchQueue {
 * Avoids rating manipulation with fair queueing
 
 ---
+## 🧪 Testing
 
+- `npm run test` (backend)
+- Run frontend > try submitting code with edge cases
+
+---
 ## Contributing
 
 ```bash
@@ -167,6 +178,11 @@ $ git push origin feature/new-feature
 
 ---
 
-**Built with ❤️**
+## 📝 License
+
+This project is licensed under the [MIT License](LICENSE).
+
+---
+**Built with ❤️ by Harsh Garg**
 
 If you love it, star it!
