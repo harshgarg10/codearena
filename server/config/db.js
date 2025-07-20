@@ -1,14 +1,17 @@
 const mysql = require('mysql2/promise');
 
-// Check if we're in Railway environment
+// Determine environment
+const isProduction = process.env.NODE_ENV === 'production';
 const isRailway = process.env.RAILWAY_ENVIRONMENT === 'production' || process.env.DB_HOST === 'mysql.railway.internal';
+const isLocal = !isProduction && !isRailway;
 
-if (!isRailway) {
-  console.log('=== Database Configuration Debug ===');
+if (isLocal) {
+  console.log('=== Local Database Configuration ===');
   console.log('DB_HOST:', process.env.DB_HOST);
   console.log('DB_USER:', process.env.DB_USER);
   console.log('DB_PASS:', process.env.DB_PASS ? 'Password exists' : 'No password');
   console.log('DB_NAME:', process.env.DB_NAME);
+  console.log('Environment: LOCAL DEVELOPMENT');
 }
 
 const pool = mysql.createPool({
@@ -21,12 +24,15 @@ const pool = mysql.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
-  acquireTimeout: 60000,
-  timeout: 60000,
-  reconnect: true
+  // Remove invalid options for local development
+  ...(isLocal ? {} : {
+    acquireTimeout: 60000,
+    timeout: 60000,
+    reconnect: true
+  })
 });
 
-// Test the connection with retry logic for Railway
+// Test the connection
 const testConnection = async (retries = 3) => {
   for (let i = 0; i < retries; i++) {
     try {
@@ -38,19 +44,19 @@ const testConnection = async (retries = 3) => {
       console.error(`❌ Database connection attempt ${i + 1}/${retries} failed:`, err.message);
       if (i === retries - 1) {
         console.error('❌ All database connection attempts failed');
-        if (isRailway) {
-          console.error('💡 Railway tip: Make sure your database service is running');
+        if (isLocal) {
+          console.error('💡 Local tip: Make sure MySQL is running and credentials are correct');
+          console.error('   Try: mysql -u root -p');
         }
         throw err;
       }
-      // Wait 2 seconds before retry
       await new Promise(resolve => setTimeout(resolve, 2000));
     }
   }
 };
 
-// Only test connection in development
-if (!isRailway) {
+// Test connection for local development
+if (isLocal) {
   testConnection().catch(err => {
     console.error('❌ Database connection failed completely:', err);
   });

@@ -1,28 +1,37 @@
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
+const os = require('os');
 
-const SUBMISSIONS_DIR = path.join(__dirname, '..', 'submissions');
-const LANGUAGES_DIR = path.join(__dirname, '..', 'languages');
+const TEMP_DIR = path.join(__dirname, '..', 'temp');
+const IS_WINDOWS = os.platform() === 'win32';
 
-// Ensure submissions directory exists
-if (!fs.existsSync(SUBMISSIONS_DIR)) {
-  fs.mkdirSync(SUBMISSIONS_DIR, { recursive: true });
+// Ensure temp directory exists
+if (!fs.existsSync(TEMP_DIR)) {
+  fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
 const LANGUAGE_CONFIG = {
   cpp: {
     filename: 'main.cpp',
-    languageDir: path.join(LANGUAGES_DIR, 'cpp')
+    compile: (srcPath, binPath) => IS_WINDOWS ? 
+      `g++ -O2 -std=c++17 "${srcPath}" -o "${binPath}"` : // Remove .exe here
+      `g++ -O2 -std=c++17 "${srcPath}" -o "${binPath}"`,
+    execute: (binPath) => IS_WINDOWS ? `"${binPath}"` : `"${binPath}"`, // Remove .exe here too
+    needsCompilation: true
   },
   python: {
     filename: 'main.py',
-    languageDir: path.join(LANGUAGES_DIR, 'python')
+    compile: null,
+    execute: (srcPath) => `python "${srcPath}"`,
+    needsCompilation: false
   },
   java: {
     filename: 'Main.java',
-    languageDir: path.join(LANGUAGES_DIR, 'java')
+    compile: (srcPath, binDir) => `javac "${srcPath}" -d "${binDir}"`,
+    execute: (binDir) => `java -cp "${binDir}" Main`,
+    needsCompilation: true
   }
 };
 
@@ -38,71 +47,31 @@ function executeCode(code, input, language) {
     }
 
     const submissionId = uuidv4();
-    const submissionPath = path.join(SUBMISSIONS_DIR, submissionId);
+    const workDir = path.join(TEMP_DIR, submissionId);
     
     try {
-      // Create submission directory
-      fs.mkdirSync(submissionPath, { recursive: true });
-      console.log(`📁 Created submission directory: ${submissionPath}`);
+      // Create working directory
+      fs.mkdirSync(workDir, { recursive: true });
+      console.log(`📁 Created working directory: ${workDir}`);
 
-      // Write code and input files
-      const codeFilePath = path.join(submissionPath, config.filename);
-      const inputFilePath = path.join(submissionPath, 'input.txt');
+      // Write source code and input
+      const srcPath = path.join(workDir, config.filename);
+      const inputPath = path.join(workDir, 'input.txt');
       
-      fs.writeFileSync(codeFilePath, code);
-      fs.writeFileSync(inputFilePath, input || '');
+      fs.writeFileSync(srcPath, code);
+      fs.writeFileSync(inputPath, input || '');
       
-      console.log(`📝 Written code to: ${codeFilePath}`);
-      console.log(`📝 Written input to: ${inputFilePath}`);
+      console.log(`📝 Written ${language} code and input`);
 
-      // Copy language-specific files
-      const dockerfileSrc = path.join(config.languageDir, 'Dockerfile');
-      const runnerSrc = path.join(config.languageDir, 'runner.sh');
-      
-      console.log(`🔍 Looking for Dockerfile at: ${dockerfileSrc}`);
-      console.log(`🔍 Looking for runner.sh at: ${runnerSrc}`);
-      
-      if (!fs.existsSync(dockerfileSrc)) {
-        throw new Error(`Dockerfile not found at: ${dockerfileSrc}`);
+      if (IS_WINDOWS) {
+        executeOnWindows(config, srcPath, inputPath, workDir, language, resolve);
+      } else {
+        executeOnLinux(config, srcPath, inputPath, workDir, language, resolve);
       }
-      
-      if (!fs.existsSync(runnerSrc)) {
-        throw new Error(`runner.sh not found at: ${runnerSrc}`);
-      }
-
-      fs.copyFileSync(dockerfileSrc, path.join(submissionPath, 'Dockerfile'));
-      fs.copyFileSync(runnerSrc, path.join(submissionPath, 'runner.sh'));
-      
-      console.log(`📋 Copied Dockerfile and runner.sh to submission directory`);
-      
-      // List files in submission directory for debugging
-      const files = fs.readdirSync(submissionPath);
-      console.log(`📂 Files in submission directory:`, files);
-
-      const imageName = `code-runner-${submissionId}`;
-      
-      // Build and run Docker container
-      const dockerCommand = `cd "${submissionPath}" && docker build -t ${imageName} . && docker run --rm --memory=128m --cpus="0.5" --network none ${imageName}`;
-      
-      console.log(`🐳 Executing: ${dockerCommand}`);
-
-      exec(dockerCommand, { 
-        timeout: 15000, // Increased timeout to 15 seconds
-        killSignal: 'SIGKILL',
-        maxBuffer: 1024 * 1024 // 1MB buffer
-      }, (err, stdout, stderr) => {
-        // Parse execution results
-        const result = parseExecutionOutput(stdout, stderr, err);
-        
-        // Cleanup
-        cleanup(submissionPath, imageName);
-        
-        resolve(result);
-      });
 
     } catch (error) {
       console.error('❌ Execution setup error:', error);
-      cleanup(submissionPath, `code-runner-${submissionId}`);
+      cleanup(workDir);
       resolve({
         verdict: 'Runtime Error',
         output: `Setup failed: ${error.message}`,
@@ -112,80 +81,209 @@ function executeCode(code, input, language) {
   });
 }
 
-function parseExecutionOutput(stdout, stderr, err) {
-  let verdict = 'Runtime Error';
-  let output = '';
-  let executionTime = 0;
-  let exitCode = null;
+function executeOnWindows(config, srcPath, inputPath, workDir, language, resolve) {
+  console.log('🪟 Using Windows execution with Job Objects');
+  
+  const binPath = config.needsCompilation ? 
+    path.join(workDir, language === 'java' ? 'bin' : 'main') : srcPath;
 
-  console.log('📄 Raw stdout:', stdout);
-  console.log('📄 Raw stderr:', stderr);
-
-  if (err) {
-    console.log('❌ Execution error:', err.message);
-    
-    if (err.killed || err.signal === 'SIGKILL' || err.code === 'ENOENT') {
-      verdict = 'Time Limit Exceeded';
-      output = 'Execution timed out or was killed';
-      executionTime = 2.0;
-    } else {
-      verdict = 'Runtime Error';
-      output = stderr || err.message || 'Unknown error occurred';
-    }
+  if (config.needsCompilation) {
+    compileOnWindows(config, srcPath, binPath, inputPath, workDir, language, resolve);
   } else {
-    // Parse the structured output from runner.sh
-    const lines = (stdout || '').split('\n');
-    const outputLines = [];
-    
-    for (const line of lines) {
-      if (line.startsWith('VERDICT:')) {
-        verdict = line.substring(8).trim();
-      } else if (line.startsWith('TIME:')) {
-        const timeStr = line.substring(5).trim();
-        const parsedTime = parseFloat(timeStr);
-        if (!isNaN(parsedTime) && parsedTime >= 0) {
-          executionTime = parsedTime;
-        }
-      } else if (line.startsWith('EXIT_CODE:')) {
-        exitCode = parseInt(line.substring(10).trim());
-      } else if (line.trim() !== '') {
-        outputLines.push(line);
-      }
-    }
-    
-    output = outputLines.join('\n').trim();
+    runOnWindows(config, srcPath, inputPath, workDir, resolve);
   }
-
-  // Final verdict validation
-  if (verdict === 'Success' && !output) {
-    output = 'Program executed successfully but produced no output';
-  }
-
-  console.log(`📊 Final result: ${verdict}, Time: ${executionTime}s, Exit: ${exitCode}`);
-
-  return {
-    verdict: verdict === 'Success' ? 'Success' : verdict,
-    output: output || 'No output produced',
-    time: executionTime
-  };
 }
 
-function cleanup(submissionPath, imageName) {
-  try {
-    // Remove submission directory
-    if (fs.existsSync(submissionPath)) {
-      fs.rmSync(submissionPath, { recursive: true, force: true });
-      console.log(`🧹 Cleaned up submission directory: ${submissionPath}`);
+function compileOnWindows(config, srcPath, binPath, inputPath, workDir, language, resolve) {
+  const compileCmd = config.compile(srcPath, binPath);
+  console.log(`🔧 Compiling on Windows: ${compileCmd}`);
+  
+  const startTime = Date.now();
+  exec(compileCmd, {
+    cwd: workDir,
+    timeout: 10000, // 10 second compile timeout
+    windowsHide: true
+  }, (err, stdout, stderr) => {
+    const compileTime = (Date.now() - startTime) / 1000;
+    
+    if (err) {
+      console.log('❌ Compilation failed:', stderr);
+      cleanup(workDir);
+      return resolve({
+        verdict: 'Compilation Error',
+        output: stderr || 'Compilation failed',
+        time: compileTime
+      });
+    }
+
+    console.log('✅ Compilation successful');
+    
+    // Fix: Correct executable path construction
+    let executablePath;
+    if (language === 'java') {
+      executablePath = binPath; // Java doesn't need .exe
+    } else if (IS_WINDOWS) {
+      // For C++ on Windows, the compile command already adds .exe
+      executablePath = `${binPath}.exe`;
+    } else {
+      executablePath = binPath;
     }
     
-    // Remove Docker image
-    exec(`docker rmi ${imageName}`, (err) => {
-      if (err) {
-        console.log(`⚠️ Failed to remove Docker image ${imageName}: ${err.message}`);
+    console.log(`🎯 Executing: ${executablePath}`);
+    runOnWindows(config, executablePath, inputPath, workDir, resolve);
+  });
+}
+
+
+function runOnWindows(config, executablePath, inputPath, workDir, resolve) {
+  const runCmd = config.execute(executablePath);
+  console.log(`🚀 Running on Windows: ${runCmd}`);
+  
+  // Use a simpler approach without PowerShell jobs for better compatibility
+  const startTime = Date.now();
+  
+  const child = exec(runCmd, {
+    cwd: workDir,
+    timeout: 5000, // 5 second timeout
+    windowsHide: true,
+    maxBuffer: 1024 * 1024 // 1MB buffer
+  }, (err, stdout, stderr) => {
+    const executionTime = (Date.now() - startTime) / 1000;
+    
+    let verdict = 'Success';
+    let output = stdout.trim();
+    
+    if (err) {
+      if (err.killed || err.code === 'ENOENT' || err.signal === 'SIGTERM') {
+        verdict = 'Time Limit Exceeded';
+        output = 'Execution timed out';
       } else {
-        console.log(`🧹 Cleaned up Docker image: ${imageName}`);
+        verdict = 'Runtime Error';
+        output = stderr || err.message || 'Unknown runtime error';
       }
+    }
+    
+    console.log(`📊 Windows execution result: ${verdict}, Time: ${executionTime}s`);
+    
+    cleanup(workDir);
+    resolve({
+      verdict,
+      output: output || 'No output produced',
+      time: executionTime
     });
+  });
+  
+  // Provide input
+  if (fs.existsSync(inputPath)) {
+    try {
+      const inputData = fs.readFileSync(inputPath, 'utf-8');
+      child.stdin.write(inputData);
+      child.stdin.end();
+    } catch (error) {
+      console.error('⚠️ Failed to write input:', error.message);
+    }
+  }
+}
+
+function executeOnLinux(config, srcPath, inputPath, workDir, language, resolve) {
+  console.log('🐧 Using Linux execution');
+  
+  const binPath = config.needsCompilation ? 
+    path.join(workDir, language === 'java' ? 'bin' : 'main') : srcPath;
+
+  if (config.needsCompilation) {
+    compileOnLinux(config, srcPath, binPath, inputPath, workDir, resolve);
+  } else {
+    runOnLinux(config, srcPath, inputPath, workDir, resolve);
+  }
+}
+
+function compileOnLinux(config, srcPath, binPath, inputPath, workDir, resolve) {
+  const compileCmd = config.compile(srcPath, binPath);
+  console.log(`🔧 Compiling on Linux: ${compileCmd}`);
+  
+  exec(compileCmd, {
+    cwd: workDir,
+    timeout: 10000
+  }, (err, stdout, stderr) => {
+    if (err) {
+      cleanup(workDir);
+      return resolve({
+        verdict: 'Compilation Error',
+        output: stderr || 'Compilation failed',
+        time: 0
+      });
+    }
+
+    runOnLinux(config, binPath, inputPath, workDir, resolve);
+  });
+}
+
+function runOnLinux(config, executablePath, inputPath, workDir, resolve) {
+  const runCmd = config.execute(executablePath);
+  console.log(`🚀 Running on Linux: ${runCmd}`);
+  
+  const startTime = Date.now();
+  const child = exec(runCmd, {
+    cwd: workDir,
+    timeout: 5000, // 5 second timeout
+    maxBuffer: 1024 * 1024
+  }, (err, stdout, stderr) => {
+    const executionTime = (Date.now() - startTime) / 1000;
+    
+    let verdict = 'Success';
+    let output = stdout;
+    
+    if (err) {
+      if (err.killed || err.code === 'ENOENT') {
+        verdict = 'Time Limit Exceeded';
+        output = 'Execution timed out';
+      } else {
+        verdict = 'Runtime Error';
+        output = stderr || err.message;
+      }
+    }
+    
+    cleanup(workDir);
+    resolve({
+      verdict,
+      output: output.trim() || 'No output produced',
+      time: executionTime
+    });
+  });
+  
+  // Provide input
+  if (fs.existsSync(inputPath)) {
+    const inputData = fs.readFileSync(inputPath, 'utf-8');
+    child.stdin.write(inputData);
+    child.stdin.end();
+  }
+}
+
+function cleanup(workDir) {
+  try {
+    if (fs.existsSync(workDir)) {
+      // On Windows, sometimes files are locked, so we need to retry
+      const maxRetries = 3;
+      let retries = 0;
+      
+      const attemptCleanup = () => {
+        try {
+          fs.rmSync(workDir, { recursive: true, force: true });
+          console.log(`🧹 Cleaned up working directory: ${workDir}`);
+        } catch (error) {
+          retries++;
+          if (retries < maxRetries && IS_WINDOWS) {
+            console.log(`⏳ Retrying cleanup (${retries}/${maxRetries})...`);
+            setTimeout(attemptCleanup, 1000);
+          } else {
+            console.error('🧹 Cleanup error:', error.message);
+          }
+        }
+      };
+      
+      attemptCleanup();
+    }
   } catch (error) {
     console.error('🧹 Cleanup error:', error.message);
   }

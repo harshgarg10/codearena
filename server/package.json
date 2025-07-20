@@ -5,9 +5,12 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "setup-docker": "node scripts/setup-docker.js",
-    "cleanup-docker": "node scripts/cleanup-docker.js",
-    "test": "node test-submissions.js"
+    "test": "node test-windows-execution.js",
+    "test-submissions": "node test-submissions.js",
+    "test-security": "node test-security.js",
+    "setup": "node scripts/setup-windows-security.js",
+    "cleanup": "node scripts/cleanup-temp.js",
+    "install-tools": "node scripts/install-dev-tools.js"
   },
   "keywords": [],
   "author": "",

@@ -3,6 +3,8 @@ const path = require('path');
 const db = require('../config/db');
 const { executeCode } = require('./codeExecuter');
 const { secureFileRead, isValidTestcasePath } = require('./secureFileAccess');
+const os = require('os');
+const EXECUTION_PLATFORM = os.platform() === 'win32' ? 'windows' : 'linux';
 const compareOutputs = (actual, expected) => {
   // Trim both outputs
   const actualTrimmed = actual.trim();
@@ -184,10 +186,11 @@ const evaluateSubmission = async ({ code, language, username, problemId, duelId 
     console.log(`📊 Final result: ${passed}/${testcases.length} passed, verdict: ${finalVerdict}`);
 
     // Save to submissions table
+
     await db.execute(
-      `INSERT INTO submissions (user_id, problem_id, duel_id, code, language, verdict, time_taken, score)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [userId, problemId, duelId, code, language, finalVerdict, maxTime, totalScore]
+      `INSERT INTO submissions (user_id, problem_id, duel_id, code, language, verdict, time_taken, score, execution_platform)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [userId, problemId, duelId, code, language, finalVerdict, maxTime, totalScore, EXECUTION_PLATFORM]
     );
 
     return {
