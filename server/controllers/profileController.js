@@ -32,43 +32,42 @@ exports.getUserStats = async (req, res) => {
 
     // Get recent duels with problem titles
     const [recentDuels] = await db.query(
-    `SELECT 
-      d.room_code,
-      d.end_reason,
-      d.ended_at,
-      d.is_ranked,
-      COALESCE(p.title, 'Unknown Problem') as problem_title,
-      CASE 
-        WHEN d.player1_id = ? THEN u2.username 
-        ELSE u1.username 
-      END as opponent,
-      CASE 
-        WHEN d.winner_id = ? THEN 'Won'
-        WHEN d.winner_id IS NULL THEN 'Draw'
-        ELSE 'Lost'
-      END as result,
-      CASE 
-        WHEN d.player1_id = ? THEN d.player1_score 
-        ELSE d.player2_score 
-      END as your_score,
-      CASE 
-        WHEN d.player1_id = ? THEN d.player2_score 
-        ELSE d.player1_score 
-      END as opponent_score,
-      CASE 
-        WHEN d.player1_id = ? THEN CAST(d.player1_time AS DECIMAL(10,3))
-        ELSE CAST(d.player2_time AS DECIMAL(10,3))
-      END as your_time
-    FROM duels d
-    LEFT JOIN problems p ON d.problem_id = p.id
-    LEFT JOIN users u1 ON d.player1_id = u1.id
-    LEFT JOIN users u2 ON d.player2_id = u2.id
-    WHERE d.player1_id = ? OR d.player2_id = ?
-    ORDER BY d.ended_at DESC
-    LIMIT 10`,
-    [userId, userId, userId, userId, userId, userId, userId]
-  );
-
+      `SELECT 
+        d.room_code,
+        d.end_reason,
+        UNIX_TIMESTAMP(d.ended_at) * 1000 as ended_at,  -- Convert to JavaScript timestamp
+        d.is_ranked,
+        COALESCE(p.title, 'Unknown Problem') as problem_title,
+        CASE 
+          WHEN d.player1_id = ? THEN u2.username 
+          ELSE u1.username 
+        END as opponent,
+        CASE 
+          WHEN d.winner_id = ? THEN 'Won'
+          WHEN d.winner_id IS NULL THEN 'Draw'
+          ELSE 'Lost'
+        END as result,
+        CASE 
+          WHEN d.player1_id = ? THEN d.player1_score 
+          ELSE d.player2_score 
+        END as your_score,
+        CASE 
+          WHEN d.player1_id = ? THEN d.player2_score 
+          ELSE d.player1_score 
+        END as opponent_score,
+        CASE 
+          WHEN d.player1_id = ? THEN CAST(d.player1_time AS DECIMAL(10,3))
+          ELSE CAST(d.player2_time AS DECIMAL(10,3))
+        END as your_time
+      FROM duels d
+      LEFT JOIN problems p ON d.problem_id = p.id
+      LEFT JOIN users u1 ON d.player1_id = u1.id
+      LEFT JOIN users u2 ON d.player2_id = u2.id
+      WHERE d.player1_id = ? OR d.player2_id = ?
+      ORDER BY d.ended_at DESC
+      LIMIT 10`,
+      [userId, userId, userId, userId, userId, userId, userId]
+    );
     // Get submission statistics (check if table exists first)
     let submissionStats = [{ totalSubmissions: 0, acceptedSubmissions: 0 }];
     try {

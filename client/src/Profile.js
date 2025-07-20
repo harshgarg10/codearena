@@ -53,14 +53,26 @@ const Profile = () => {
     fetchProfile();
   }, []);
 
-  const formatDate = (dateString) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
+  const formatDate = (timestamp) => {
+    if (!timestamp) return 'N/A';
+    
+    try {
+      const date = new Date(timestamp);
+      if (isNaN(date.getTime())) {
+        return 'Invalid Date';
+      }
+      
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+      });
+    } catch (error) {
+      console.error('Date formatting error:', error);
+      return 'Invalid Date';
+    }
   };
 
   const formatTime = (timeInSeconds) => {
