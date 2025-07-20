@@ -1,4 +1,5 @@
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+const API_BASE_URL = (process.env.REACT_APP_API_URL || 'http://localhost:5000')
+  .replace(/\/+$/, ''); 
 
 export const API_ENDPOINTS = {
   // Auth endpoints
@@ -19,5 +20,8 @@ export const API_ENDPOINTS = {
   // Socket.io
   SOCKET_URL: API_BASE_URL
 };
-
+console.log('🔍 API Configuration Debug:');
+console.log('API_BASE_URL:', API_BASE_URL);
+console.log('LOGIN endpoint:', API_ENDPOINTS.LOGIN);
+console.log('LEADERBOARD endpoint:', API_ENDPOINTS.LEADERBOARD_TOP);
 export default API_BASE_URL;
