@@ -7,7 +7,7 @@ Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeAren
 ---
 ### 🖼️ Screenshot of CodeArena Dashboard
 
-![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/DuelScreen.png)
+![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/duel.png)
 
 ![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/profile.png)
 
