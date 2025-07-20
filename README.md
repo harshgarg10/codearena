@@ -152,7 +152,12 @@ class MatchQueue {
 * Avoids rating manipulation with fair queueing
 
 ---
+## 🧪 Testing
 
+- `npm run test` (backend)
+- Run frontend > try submitting code with edge cases
+
+---
 ## Contributing
 
 ```bash
@@ -178,6 +183,6 @@ $ git push origin feature/new-feature
 This project is licensed under the [MIT License](LICENSE).
 
 ---
-**Built with ❤️**
+**Built with ❤️ by Harsh Garg**
 
 If you love it, star it!
