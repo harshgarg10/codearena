@@ -1,33 +1,8 @@
 require('dotenv').config();
-const { evaluateSubmission } = require('./utils/evaluateSubmission');
-const db = require('./config/db');
+const { executeCode } = require('./utils/codeExecuter');
 
-const testSubmission = async () => {
-  try {
-    console.log('🧪 Testing submission evaluation...');
-    
-    // Check available problems
-    const [problems] = await db.execute('SELECT id, title FROM problems');
-    console.log('Available problems:', problems);
-    
-    // Check testcase files
-    const fs = require('fs');
-    const path = require('path');
-    
-    for (const problem of problems) {
-      const testcaseDir = path.join(__dirname, 'testcases', `problem-${problem.id}`);
-      console.log(`\n📁 Checking ${testcaseDir}:`);
-      
-      if (fs.existsSync(testcaseDir)) {
-        const files = fs.readdirSync(testcaseDir);
-        console.log(`  Files: ${files.join(', ')}`);
-      } else {
-        console.log(`  ❌ Directory does not exist`);
-      }
-    }
-    
-    // Test with a simple sum program
-    const testCode = `#include <iostream>
+const testCode = {
+  cpp: `#include <iostream>
 using namespace std;
 
 int main() {
@@ -35,23 +10,43 @@ int main() {
     cin >> a >> b;
     cout << a + b << endl;
     return 0;
-}`;
-
-    console.log('\n🏃 Running test submission...');
-    const result = await evaluateSubmission({
-      code: testCode,
-      language: 'cpp',
-      username: localStorage.getItem('username') || 'test_user',
-      problemId: 1
-    });
-    
-    console.log('📊 Test result:', result);
-    
-  } catch (error) {
-    console.error('❌ Test failed:', error);
-  }
+}`,
   
-  process.exit(0);
+  python: `a, b = map(int, input().split())
+print(a + b)`,
+  
+  java: `import java.util.Scanner;
+
+public class Main {
+    public static void main(String[] args) {
+        Scanner sc = new Scanner(System.in);
+        int a = sc.nextInt();
+        int b = sc.nextInt();
+        System.out.println(a + b);
+        sc.close();
+    }
+}`
 };
 
-testSubmission();
+async function testAllLanguages() {
+  console.log('🧪 Testing new code execution system...');
+  
+  for (const [language, code] of Object.entries(testCode)) {
+    console.log(`\n📝 Testing ${language.toUpperCase()}:`);
+    
+    try {
+      const result = await executeCode(code, '3 5', language);
+      console.log(`📊 Result:`, result);
+      
+      if (result.verdict === 'Success' && result.output.trim() === '8') {
+        console.log(`✅ ${language} test PASSED`);
+      } else {
+        console.log(`❌ ${language} test FAILED`);
+      }
+    } catch (error) {
+      console.error(`❌ ${language} test ERROR:`, error);
+    }
+  }
+}
+
+testAllLanguages();

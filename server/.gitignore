@@ -1,16 +1,15 @@
-# Environment and secrets
+# Environment files
 .env
 .env.local
 .env.production
-.env.test
 
-# Security logs
+# Temporary execution files
+submissions/
+temp/
+
+# Logs
 logs/
 *.log
-
-# Temporary files
-temp/
-tmp/
 
 # Node modules
 node_modules/
