@@ -35,12 +35,14 @@ const PlayWithFriend = () => {
     });
 
     newSocket.on('match-found', ({ roomCode, problem, users }) => {
-      setStatus('Match found! Entering duel room...');
+      console.log('🎮 Friend match found:', { roomCode, users });
+      setStatus('Match found! Preparing duel room...');
       
-      // Navigate to duel room after a short delay
+      // Give a longer delay for friend matches to ensure both clients are ready
       setTimeout(() => {
+        console.log('🚀 Navigating to duel room:', roomCode);
         navigate(`/duel/${roomCode}`);
-      }, 1000);
+      }, 2000); // Increased to 2 seconds for friend matches
     });
 
     newSocket.on('join-error', (errMsg) => {

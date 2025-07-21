@@ -238,7 +238,7 @@ io.on('connection', (socket) => {
       const problem = await getRandomProblem();
       const [user1, user2] = room.players;
 
-    room.problem = problem;
+      room.problem = problem;
       room.scores = { [user1]: 0, [user2]: 0 };
       room.times = { [user1]: 0, [user2]: 0 };
       room.startTime = Date.now();
@@ -250,13 +250,16 @@ io.on('connection', (socket) => {
 
       duelTimers.set(roomCode, timer);
 
-      io.to(roomCode).emit('match-found', {
-        roomCode,
-        problem,
-        users: [user1, user2],
-      });
+      // IMPORTANT: Add a small delay to ensure both clients are ready
+      setTimeout(() => {
+        io.to(roomCode).emit('match-found', {
+          roomCode,
+          problem,
+          users: [user1, user2],
+        });
 
-      console.log(`Match started in room ${roomCode} with problem: ${problem.title}`);
+        console.log(`Friend match started in room ${roomCode} with problem: ${problem.title}`);
+      }, 1000); // 1 second delay to ensure synchronization
     }
   });
   // Update the submission-result handler
@@ -534,14 +537,33 @@ socket.on('join-duel-room', ({ roomCode, username }) => {
   console.log(`🎯 Problem: ${room.problem?.title || 'Unknown'}`);
   console.log(`⚔️ Opponent: ${opponent || 'Unknown'}`);
   
+  // Send duel data immediately
   socket.emit('duel-data', { 
     problem: room.problem, 
     opponent: opponent || 'Unknown',
     scores: room.scores || {},
     times: room.times || {}
   });
-});
 
+  // Check if both players have joined the duel room
+  const socketsInRoom = Array.from(io.sockets.adapter.rooms.get(roomCode) || []);
+  const playersInRoom = socketsInRoom
+    .map(socketId => socketToUser.get(socketId))
+    .filter(username => room.players.includes(username));
+
+  console.log(`📊 Players in room ${roomCode}: ${playersInRoom.length}/2`);
+  
+  // If both players are now connected, notify the room
+  if (playersInRoom.length === 2) {
+    console.log(`🎯 Both players connected in room ${roomCode} - duel is ready!`);
+    
+    // Send a confirmation to both players
+    io.to(roomCode).emit('duel-ready', {
+      message: 'Both players are connected. Duel begins now!',
+      players: room.players
+    });
+  }
+});
 // ...existing code...
   socket.on('disconnect', () => {
     const username = socketToUser.get(socket.id);

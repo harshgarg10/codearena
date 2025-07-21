@@ -53,7 +53,8 @@ const DuelRoom = () => {
   const [times, setTimes] = useState({});
   const [winner, setWinner] = useState(null);
   const [endReason, setEndReason] = useState('');
-  
+  const [connectionState, setConnectionState] = useState('connecting');
+  const [bothPlayersReady, setBothPlayersReady] = useState(false);  
   // Exit confirmation state
   const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [attemptedNavigation, setAttemptedNavigation] = useState(null);
@@ -175,12 +176,23 @@ const DuelRoom = () => {
       setOpponent(opponent);
       setScores(scores || {});
       setTimes(times || {});
+      setConnectionState('connected');
+      
+      // Show connection status
+      if (opponent && opponent !== 'Unknown') {
+        setOutput(`🔗 Connected to duel room!\n👤 You: ${username}\n⚔️ Opponent: ${opponent}\n\n⏳ Waiting for both players to be ready...`);
+      }
     };
-
+    
     const handleScoreUpdate = ({ scores, times }) => {
       console.log('📊 Score update:', scores);
       setScores(scores);
       setTimes(times);
+    };
+    const handleDuelReady = ({ message, players }) => {
+      console.log('🎯 Both players ready:', message);
+      setBothPlayersReady(true);
+      setOutput(`🔗 Connected to duel room!\n👤 You: ${username}\n⚔️ Opponent: ${opponent}\n\n🎯 Both players ready! The duel begins now!\n\n${problem ? `📋 Problem: ${problem.title}` : '📋 Loading problem...'}`);
     };
 
     const handleDuelEnded = ({ winner, reason, finalScores, finalTimes, ratingChanges, isRanked }) => {
@@ -256,13 +268,14 @@ const DuelRoom = () => {
     socket.on('duel-ended', handleDuelEnded);
     socket.on('opponent-disconnected', handleOpponentDisconnected);
     socket.on('duel-error', handleDuelError);
-
+    socket.on('duel-ready', handleDuelReady);
     return () => {
       socket.off('duel-data', handleDuelData);
       socket.off('score-update', handleScoreUpdate);
       socket.off('duel-ended', handleDuelEnded);
       socket.off('opponent-disconnected', handleOpponentDisconnected);
       socket.off('duel-error', handleDuelError);
+      socket.off('duel-ready', handleDuelReady); 
     };
   }, [socket, roomCode, username, navigate]);
 
@@ -410,6 +423,15 @@ const DuelRoom = () => {
               <Clock className="w-4 h-4" />
               <span className="font-mono font-bold">{formatTime(timeLeft)}</span>
             </div>
+            
+            {/* Connection Status Indicator */}
+            {!bothPlayersReady && !gameEnded && (
+              <div className="flex items-center gap-2 px-3 py-1 rounded-lg bg-yellow-900 text-yellow-300">
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span className="text-sm">Syncing...</span>
+              </div>
+            )}
+            
             <span className="text-sm text-gray-400">Room: {roomCode}</span>
             
             {/* Exit Button */}
