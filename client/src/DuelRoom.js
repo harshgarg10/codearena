@@ -80,9 +80,19 @@ const DuelRoom = () => {
   }, [gameEnded]);
 
   // Prevent browser back/refresh during active duel
+  // Enhanced navigation prevention - for tab close
   useEffect(() => {
     const handleBeforeUnload = (event) => {
       if (!gameEnded) {
+        // For tab closing/browser closing - immediate forfeit via socket
+        console.log('🚨 User attempting to close tab/browser - triggering forfeit');
+        
+        // Immediate forfeit signal
+        if (socket && !gameEnded) {
+          socket.emit('player-forfeit', { roomCode, username });
+        }
+        
+        // Show confirmation dialog
         event.preventDefault();
         event.returnValue = 'Are you sure you want to leave? This will end the duel and your opponent will win.';
         return event.returnValue;
@@ -94,7 +104,6 @@ const DuelRoom = () => {
         event.preventDefault();
         setShowExitConfirm(true);
         setAttemptedNavigation('back');
-        // Push the current state back to prevent navigation
         window.history.pushState(null, '', window.location.pathname);
       }
     };
@@ -110,7 +119,7 @@ const DuelRoom = () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       window.removeEventListener('popstate', handlePopState);
     };
-  }, [gameEnded]);
+  }, [gameEnded, socket, roomCode, username]);
 
   // Format time display
   const formatTime = (seconds) => {
@@ -205,11 +214,31 @@ const DuelRoom = () => {
       setOutput(gameOverMessage);
     };
 
-    const handleOpponentDisconnected = ({ disconnectedPlayer }) => {
-      console.log('🏃‍♂️ Opponent disconnected:', disconnectedPlayer);
-      setGameEnded(true);
-      setOutput(`🏃‍♂️ ${disconnectedPlayer} disconnected. You win by default!`);
-    };
+    const handleOpponentDisconnected = ({ disconnectedPlayer, gracePeriod }) => {
+    console.log('🔌 Opponent disconnected:', disconnectedPlayer);
+    
+    if (gracePeriod && gracePeriod > 0) {
+      setOutput(prev => prev + `\n\n🔌 ${disconnectedPlayer} disconnected. Checking for reconnection...`);
+      
+      // Short countdown for tab close detection
+      let timeLeft = gracePeriod;
+      const countdownInterval = setInterval(() => {
+        timeLeft--;
+        if (timeLeft > 0) {
+          setOutput(prev => {
+            const lines = prev.split('\n');
+            lines[lines.length - 1] = `🔌 ${disconnectedPlayer} disconnected. Checking reconnection... ${timeLeft}s`;
+            return lines.join('\n');
+          });
+        } else {
+          clearInterval(countdownInterval);
+          setOutput(prev => prev + `\n\n🏆 ${disconnectedPlayer} didn't return. You win by forfeit!`);
+        }
+      }, 1000);
+    } else {
+      setOutput(prev => prev + `\n\n🏆 ${disconnectedPlayer} left the game. You win by forfeit!`);
+    }
+  };
 
     const handleDuelError = (error) => {
       console.error('❌ Duel room error:', error);

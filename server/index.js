@@ -147,12 +147,16 @@ io.on('connection', (socket) => {
   });
 
   // Add this event handler in the socket.io section
+  // Handle explicit player forfeit (tab close)
   socket.on('player-forfeit', async ({ roomCode, username }) => {
-    console.log(`🏃‍♂️ ${username} is forfeiting duel in room ${roomCode}`);
+    console.log(`🏃‍♂️ ${username} explicitly forfeited from room ${roomCode}`);
     
     const room = rooms.get(roomCode);
-    if (!room) return;
-
+    if (!room) {
+      console.log(`Room ${roomCode} not found for forfeit`);
+      return;
+    }
+    
     // Clear the duel timer since game is ending
     const timer = duelTimers.get(roomCode);
     if (timer) {
@@ -165,8 +169,9 @@ io.on('connection', (socket) => {
     const winner = player1 === username ? player2 : player1;
     const reason = `🏃‍♂️ ${username} forfeited the match. ${winner} wins!`;
 
-    // Save duel result to database
     try {
+      // Save the duel result
+      const { saveDuelResult } = require('./controllers/duelController');
       const { ratingChanges } = await saveDuelResult({
         roomCode,
         players: room.players,
@@ -178,17 +183,21 @@ io.on('connection', (socket) => {
         isRanked: room.isRanked
       });
 
+      // Notify all players in the room
       io.to(roomCode).emit('duel-ended', {
         winner,
         reason,
         finalScores: room.scores,
         finalTimes: room.times,
         ratingChanges,
-        isRnaked: room.isRanked
+        isRanked: room.isRanked
       });
+
+      console.log(`✅ Forfeit processed for room ${roomCode}`);
     } catch (error) {
-      console.error('Failed to save forfeit result:', error);
-      // Still end the game even if saving fails
+      console.error('❌ Failed to process forfeit:', error);
+      
+      // Still end the duel even if database save fails
       io.to(roomCode).emit('duel-ended', {
         winner,
         reason,
@@ -196,9 +205,9 @@ io.on('connection', (socket) => {
         finalTimes: room.times
       });
     }
-
+    
+    // Clean up the room
     rooms.delete(roomCode);
-    console.log(`Duel ended due to forfeit in room ${roomCode}: ${reason}`);
   });
 
   socket.on('join-room', async ({ roomCode, username }) => {
@@ -534,43 +543,100 @@ socket.on('join-duel-room', ({ roomCode, username }) => {
 });
 
 // ...existing code...
-socket.on('disconnect', () => {
-  const username = socketToUser.get(socket.id);
-  console.log(`User disconnected: ${username || socket.id}`);
-  
-  if (username) {
-    // Remove from matchmaking queue if present
-    if (userMap.has(socket.id)) {
-      const user = userMap.get(socket.id);
-      matchQueue.remove(user);
-      userMap.delete(socket.id);
-      
-      const timeoutId = userTimeouts.get(socket.id);
-      if (timeoutId) {
-        clearTimeout(timeoutId);
-        userTimeouts.delete(socket.id);
-      }
-      console.log(`Removed ${username} from matchmaking queue`);
-    }
-
-    // Handle disconnect during a duel
-    for (const [roomCode, room] of rooms.entries()) {
-      if (room.players.includes(username)) {
-        // Don't delete the room immediately. Just notify the other player.
-        // The game end logic will handle cleanup.
-        io.to(roomCode).emit('opponent-disconnected', { disconnectedPlayer: username });
-        console.log(`Player ${username} disconnected from room ${roomCode}. Notifying opponent.`);
+  socket.on('disconnect', () => {
+    const username = socketToUser.get(socket.id);
+    console.log(`User disconnected: ${username || socket.id}`);
+    
+    if (username) {
+      // Remove from matchmaking queue if present
+      if (userMap.has(socket.id)) {
+        const user = userMap.get(socket.id);
+        matchQueue.remove(user);
+        userMap.delete(socket.id);
         
-        // Optional: Start a timer to end the game if the user doesn't reconnect
-        // For now, we'll let the other player win by default.
-        break;
+        const timeoutId = userTimeouts.get(socket.id);
+        if (timeoutId) {
+          clearTimeout(timeoutId);
+          userTimeouts.delete(socket.id);
+        }
+        console.log(`Removed ${username} from matchmaking queue`);
+      }
+
+      // Handle duel forfeit for tab close/browser close
+      for (const [roomCode, room] of rooms.entries()) {
+        if (room.players.includes(username)) {
+          console.log(`🚨 ${username} disconnected from active duel in room ${roomCode}`);
+          
+          // Immediate forfeit for tab close (no grace period)
+          const forfeitTimer = setTimeout(async () => {
+            // Check if user reconnected
+            const userReconnected = [...io.sockets.sockets.values()]
+              .some(s => socketToUser.get(s.id) === username);
+              
+            if (!userReconnected && rooms.has(roomCode)) {
+              console.log(`⏰ ${username} didn't reconnect - confirming forfeit`);
+              
+              // Clear the duel timer since game is ending
+              const duelTimer = duelTimers.get(roomCode);
+              if (duelTimer) {
+                clearTimeout(duelTimer);
+                duelTimers.delete(roomCode);
+              }
+
+              // Determine the winner (the opponent)
+              const [player1, player2] = room.players;
+              const winner = player1 === username ? player2 : player1;
+              const reason = `🔌 ${username} closed the tab/browser. ${winner} wins by forfeit!`;
+
+              // Save duel result to database
+              try {
+                const { saveDuelResult } = require('./controllers/duelController');
+                const { ratingChanges } = await saveDuelResult({
+                  roomCode,
+                  players: room.players,
+                  problemId: room.problem?.id,
+                  scores: room.scores,
+                  times: room.times,
+                  winner,
+                  endReason: reason,
+                  isRanked: room.isRanked
+                });
+
+                io.to(roomCode).emit('duel-ended', {
+                  winner,
+                  reason,
+                  finalScores: room.scores,
+                  finalTimes: room.times,
+                  ratingChanges,
+                  isRanked: room.isRanked
+                });
+              } catch (error) {
+                console.error('Failed to save forfeit result:', error);
+                io.to(roomCode).emit('duel-ended', {
+                  winner,
+                  reason,
+                  finalScores: room.scores,
+                  finalTimes: room.times
+                });
+              }
+
+              rooms.delete(roomCode);
+              console.log(`Duel ended due to tab close forfeit in room ${roomCode}`);
+            }
+          }, 3000); // Very short 3-second grace period only for connection issues
+
+          // Immediately notify the other player
+          io.to(roomCode).emit('opponent-disconnected', { 
+            disconnectedPlayer: username,
+            gracePeriod: 3 // Only 3 seconds for potential reconnection
+          });
+          break;
+        }
       }
     }
-  }
 
-  socketToUser.delete(socket.id);
-});
-// ...existing code...
+    socketToUser.delete(socket.id);
+  });
 });
 
 // Start server with auto-seeding
