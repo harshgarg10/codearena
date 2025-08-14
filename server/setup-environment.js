@@ -4,33 +4,21 @@ const fs = require('fs');
 const path = require('path');
 
 async function setupEnvironment() {
-  console.log('🔧 Setting up CodeArena execution environment...\n');
+  console.log('🔧 Setting up CodeArena execution environment for Localhost...\n');
   
-  if (isLocalhost) {
-    console.log('🏠 LOCALHOST SETUP');
-    console.log('==================');
-    console.log('✅ Docker execution mode enabled');
-    console.log('🔒 Secure isolation for code execution');
-    console.log('🐳 Checking Docker availability...\n');
-    
-    await checkDockerAvailability();
-    await ensureDockerImages();
-    
-  } else {
-    console.log('☁️  DEPLOYMENT SETUP');
-    console.log('==================');
-    console.log('✅ Native execution mode enabled');
-    console.log('⚡ Optimized for production performance');
-    console.log('🛠️ Checking development tools...\n');
-    
-    await checkNativeTools();
-    await ensureTempDirectories();
-  }
+  // --- Simplified for Localhost Only ---
+  console.log('🏠 LOCALHOST SETUP');
+  console.log('==================');
+  console.log('✅ Docker execution mode enabled');
+  console.log('🔒 Secure isolation for code execution');
+  console.log('🐳 Checking Docker availability...\n');
+  
+  await checkDockerAvailability();
+  await ensureDockerImages();
   
   console.log('\n🎉 Environment setup completed successfully!');
   console.log(`🎯 Code execution mode: ${EXECUTION_CONFIG.mode.toUpperCase()}`);
 }
-
 async function checkDockerAvailability() {
   return new Promise((resolve) => {
     exec('docker --version', (err, stdout, stderr) => {

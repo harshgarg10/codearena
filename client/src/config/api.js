@@ -2,9 +2,7 @@
 const isDevelopment = window.location.hostname === 'localhost';
 
 // Select API base URL based on environment
-const API_BASE_URL = isDevelopment 
-  ? 'http://localhost:5000' 
-  : 'https://codearena-backend-z4dx.onrender.com';
+const API_BASE_URL = 'http://localhost:5000';
 
 export const API_ENDPOINTS = {
   // Auth endpoints

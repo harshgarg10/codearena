@@ -15,14 +15,14 @@ if (isLocal) {
 }
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASS,
-  database: process.env.DB_NAME || 'codearena',
-  ssl: isRailway ? { rejectUnauthorized: false } : false,
+  host: process.env.DB_HOST,
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD || process.env.DB_PASS,
+  database: process.env.DB_NAME,
+  port: process.env.DB_PORT || 3306,
   waitForConnections: true,
   connectionLimit: 10,
+  connectTimeout: 20000, // 20 seconds, increased from default 10s
   queueLimit: 0,
   // Remove invalid options for local development
   ...(isLocal ? {} : {

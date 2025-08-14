@@ -59,14 +59,12 @@ const DOCKER_LANGUAGE_CONFIG = {
 /**
  * Main code execution function - routes to native or docker
  */
+
 function executeCode(code, input, language) {
-  console.log(`🎯 Executing ${language} code in ${EXECUTION_CONFIG.mode} mode`);
-  
-  if (EXECUTION_CONFIG.mode === 'native') {
-    return executeNative(code, input, language);
-  } else {
-    return executeDocker(code, input, language);
-  }
+  console.log(`🎯 Executing ${language} code in docker mode`);
+  // --- Simplified for Localhost Only ---
+  // Always use Docker execution
+  return executeDocker(code, input, language);
 }
 
 /**

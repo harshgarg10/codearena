@@ -24,7 +24,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: ["http://localhost:3000","https://codearena-bice.vercel.app" ],
+    origin: ["http://localhost:3000"],
     credentials: true,
     methods: ["GET", "POST"]
   }
@@ -33,7 +33,7 @@ const io = socketIo(server, {
 const PORT = process.env.PORT || 5000;
 console.log('\n🚀 CodeArena Server Starting...');
 console.log(`🎯 Execution Mode: ${EXECUTION_CONFIG.mode.toUpperCase()}`);
-console.log(`🌍 Environment: ${isLocalhost ? 'LOCALHOST' : 'DEPLOYMENT'}`);
+console.log(`🌍 Environment: LOCALHOST`);
 
 
 app.use('/testcases', (req, res) => {
