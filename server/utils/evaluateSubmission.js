@@ -37,20 +37,6 @@ const safeReadFile = (filePath) => {
   }
 };
 
-const isValidTestcasePath = (filePath) => {
-  // Basic sanity checks to prevent path traversal
-  const normalizedPath = path.normalize(filePath);
-  
-  // Allow paths in testcases directory
-  if (normalizedPath.includes('testcases')) {
-    return true;
-  }
-  
-  // For additional safety, check that the path doesn't contain suspicious patterns
-  return !normalizedPath.includes('..') && 
-         !normalizedPath.includes('~') && 
-         !normalizedPath.includes('.git');
-};
 const compareOutputs = (actual, expected) => {
   // Trim both outputs
   const actualTrimmed = actual.trim();
