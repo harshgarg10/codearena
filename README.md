@@ -1,86 +1,86 @@
-# CodeArena - Real-Time Competitive Programming Platform
+# CodeArena - Real-Time Competitive Programming Platform (Local-First)
 
-Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeArena delivers fast-paced gameplay, fair matchmaking, and secure live execution for competitive developers.
+Compete head-to-head in real-time coding duels in C++, Python, or Java.
+CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution** for competitive developers — now optimized for **localhost + Docker** setup for safe, reproducible environments.
 
 ---
+
 ### 🖼️ Screenshot of CodeArena Dashboard
 
 ![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/duel.png)
-
 ![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/profile.png)
-
 ![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/Home%20Screen.png)
 
 ---
-## Features
 
-### Game Modes
+## ✨ Features
 
-* **Ranked Matches**: Matchmaking with ELO-based rating updates
-* **Play with Friends**: Casual rooms using room codes
+### 🎮 Game Modes
 
-### Real-time Gameplay
+* **Ranked Matches:** ELO-based rating updates with fair matchmaking
+* **Play with Friends:** Casual rooms via room codes
+
+### ⚡ Real-Time Gameplay
 
 * Monaco Editor in-browser (VS Code-like)
-* Live opponent tracking and test results
-* 30-minute time-limited duels
+* Live opponent code/test results
+* 30-minute duel timer
 
-### Language Support
+### 🖥 Language Support
 
 * C++17 (GCC), Python 3.11+, Java 17+
-* Windows & Linux execution environments
+* Runs in Docker containers for security (Windows/Linux)
 
-### Player Stats
+### 📊 Player Stats
 
-* Win/loss records, match history, and global leaderboard
-* ELO-based skill ranking system
+* Win/loss records, match history, and leaderboard
+* ELO-based ranking system
 
-### Secure Execution
+### 🔒 Secure Execution
 
-* Isolated environments with CPU/memory limits
-* Secure testcase access, path validation, and response sanitization
-* JWT authentication and API rate limiting
+* Isolated Docker environments with CPU/memory limits
+* Path validation & secure testcase access
+* JWT authentication + API rate limiting
 
-### Efficient Matchmaking (Red-Black Tree)
+### 🔍 Efficient Matchmaking (Red-Black Tree)
 
-* O(log n) insert/search/remove with bintrees
+* O(log n) insert/search/remove with `bintrees`
 * Closest rating match within 2-minute timeout
-* Live queue monitoring and fair pairing
+* Live queue monitoring
 
 ---
 
-## Quick Start
+## 🚀 Quick Start (Local-First)
 
-### Prerequisites
+### 📋 Prerequisites
 
-* Node.js (v16+), MySQL (v8+), Git, npm/yarn
+* Node.js (v16+) & npm
+* Docker Desktop (Windows/macOS) or Docker Engine (Linux)
+* MySQL (optional for local DB)
+* Git
 
-### Installation
+---
 
-```bash
-# Clone and install
-$ git clone https://github.com/yourusername/codearena.git
-$ cd codearena && npm install
-
-# Server & Client
-$ cd server && npm install
-$ cd ../client && npm install
-```
-
-### Database Setup
+### 1️⃣ Clone & Install
 
 ```bash
-# Create DB & run schema
-$ mysql -u root -p < db/schema.sql
-$ mysql -u root -p < db/add-execution-platform.sql
+git clone https://github.com/yourusername/codearena.git
+cd codearena
 
-# Or run automated setup
-$ cd server && npm run setup-db
+# Install backend
+cd server
+npm install
+
+# Install frontend
+cd ../client
+npm install
 ```
 
-### Environment Files
+---
 
-**server/.env**
+### 2️⃣ Environment Setup
+
+**server/.env** (required)
 
 ```
 DB_USER=root
@@ -88,41 +88,75 @@ DB_PASS=your_password
 DB_NAME=codearena
 JWT_SECRET=your_secret_key
 PORT=5000
+USE_DOCKER=true
 ```
 
-**client/.env**
+**client/.env** (optional)
 
 ```
 REACT_APP_API_URL=http://localhost:5000
 ```
 
-### Start App
+---
+
+### 3️⃣ Verify Docker
 
 ```bash
-# Terminal 1
-$ cd server && npm start
+docker --version
+docker ps
+```
 
-# Terminal 2
-$ cd client && npm start
+Make sure Docker Desktop is running.
+
+Run setup:
+
+```bash
+cd server
+node setup-environment.js
 ```
 
 ---
 
-## Architecture Overview
+### 4️⃣ Database Setup
 
-```
-[ React (Frontend) ] —→ [ Express + Socket.io (Backend) ] —→ [ MySQL ]
-                                          │
-                                 [ Code Execution Engine ]
-                                          │
-                                  [ Red-Black Tree Queue ]
+```bash
+# Automated reset & seed problems
+cd server
+node db/reset-problems.js
+
+# Test DB connection
+node test-db.js
 ```
 
 ---
 
-## Matchmaking Deep Dive
+### 5️⃣ Start App
 
-**Algorithm:** Red-Black Tree via `bintrees`
+```bash
+# Terminal 1 - Backend
+cd server
+npm start    # http://localhost:5000
+
+# Terminal 2 - Frontend
+cd client
+npm start    # http://localhost:3000
+```
+
+---
+
+## 🛠 Architecture Overview
+
+```
+[ React (Frontend) ] → [ Express + Socket.io (Backend) ] → [ MySQL ]
+                                         │
+                               [ Docker Code Execution ]
+                                         │
+                               [ Red-Black Tree Queue ]
+```
+
+---
+
+## 🧩 Matchmaking Algorithm
 
 ```js
 const { RBTree } = require('bintrees');
@@ -145,28 +179,46 @@ class MatchQueue {
 }
 ```
 
-**Benefits:**
+---
 
-* Insert/Search/Delete: O(log n)
-* Closest match in real time
-* Avoids rating manipulation with fair queueing
+## 🐛 Troubleshooting
+
+* **Docker error** → Start Docker Desktop & re-run `node setup-environment.js`
+* **DB timeout** → Check `.env` DB host/port → `node test-db.js`
+* **Testcase not found** →
+
+  ```bash
+  node db/fix-testcase-paths.js
+  # or
+  node db/reset-problems.js
+  ```
 
 ---
+
 ## 🧪 Testing
 
-- `npm run test` (backend)
-- Run frontend > try submitting code with edge cases
+```bash
+# Backend tests
+npm run test
+
+# Execution tests (Docker/local)
+npm run test-docker
+npm run test-localhost
+```
 
 ---
-## Contributing
+
+## 🤝 Contributing
 
 ```bash
 # Fork & branch
-$ git checkout -b feature/new-feature
-# Make changes and commit
-$ git commit -m "Add new feature"
-# Push and open PR
-$ git push origin feature/new-feature
+git checkout -b feature/new-feature
+
+# Make changes
+git commit -m "Add new feature"
+
+# Push & PR
+git push origin feature/new-feature
 ```
 
 **Areas to contribute:**
@@ -174,15 +226,15 @@ $ git push origin feature/new-feature
 * New problems / test cases
 * Add Rust/Go support
 * UI enhancements
-* Security patches
+* Security improvements
 
 ---
 
-## 📝 License
+## 📜 License
 
-This project is licensed under the [MIT License](LICENSE).
+Licensed under the [MIT License](LICENSE).
 
 ---
+
 **Built with ❤️ by Harsh Garg**
-
-If you love it, star it!
+If you love it, ⭐ star the repo!
