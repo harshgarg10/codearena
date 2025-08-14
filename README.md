@@ -1,72 +1,44 @@
 # CodeArena - Real-Time Competitive Programming Platform (Local-First)
 
-Compete head-to-head in real-time coding duels in C++, Python, or Java.
-CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution** for competitive developers — now optimized for **localhost + Docker** setup for safe, reproducible environments.
-
-> **Local-first / Docker required:** This project must run with Docker. Before starting, run the checker script [`setupEnvironment`](server/setup-environment.js) to verify Docker and build images.
+Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution** — optimized for **localhost + Docker** to ensure safe, reproducible environments.
 
 ---
 
-### 🖼️ Screenshot of CodeArena Dashboard
+## 🖼️ Screenshots
 
-![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/duel.png)
-![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/profile.png)
-![CodeArena Screenshot](https://github.com/harshgarg10/codearena/blob/main/images/Home%20Screen.png)
+![Dashboard](https://github.com/harshgarg10/codearena/blob/main/images/duel.png)
+![Profile](https://github.com/harshgarg10/codearena/blob/main/images/profile.png)
+![Home Screen](https://github.com/harshgarg10/codearena/blob/main/images/Home%20Screen.png)
 
 ---
 
 ## ✨ Features
 
-*(unchanged from before)*
+* **Game Modes:** Ranked (ELO-based) and Casual with room codes
+* **Real-Time Gameplay:** Monaco Editor, live opponent updates, 30-min timer
+* **Languages:** C++17, Python 3.11+, Java 17+, Docker-isolated
+* **Stats & Rankings:** Win/loss history, leaderboards
+* **Secure Execution:** CPU/memory limits, path validation, JWT auth
+* **Matchmaking:** Red-Black Tree for O(log n) matching
 
 ---
 
-## 🚀 Quick Start (Local-First)
+## 🚀 Quick Start
 
-### 📋 Prerequisites
+**Prerequisites:** Node.js 16+, npm, Docker, MySQL (optional), Git
 
-* Node.js v16+ (recommended v18+)
-* npm
-* Docker Desktop (Windows/macOS) or Docker Engine (Linux)
-* MySQL (optional for local DB)
-* Git
-
----
-
-### 🐳 Docker Instructions
-
-1. Start Docker Desktop before running the app.
-2. Verify Docker is running:
-
-```bash
-docker --version
-docker ps
-```
-
-3. Build Docker images manually if needed: [`build-docker-images.bat`](server/build-docker-images.bat)
-
----
-
-### 1️⃣ Clone & Install
+### 1. Clone & Install
 
 ```bash
 git clone https://github.com/yourusername/codearena.git
 cd codearena
-
-# Install backend
-cd server
-npm install
-
-# Install frontend
-cd ../client
-npm install
+cd server && npm install
+cd ../client && npm install
 ```
 
----
+### 2. Environment Setup
 
-### 2️⃣ Environment Setup
-
-**server/.env** (required)
+`server/.env`
 
 ```
 DB_USER=root
@@ -77,141 +49,73 @@ PORT=5000
 USE_DOCKER=true
 ```
 
-**client/.env** (optional)
+`client/.env`
 
 ```
 REACT_APP_API_URL=http://localhost:5000
 ```
 
----
-
-### 3️⃣ Database Setup & Fixes
-
-* Create DB & select it:
+### 3. Docker Check
 
 ```bash
-mysql -u root -p -D codearena
+docker --version
+docker ps
+cd server && node setup-environment.js
 ```
 
-* Automated reset & seed problems:
+### 4. Database Setup
 
 ```bash
 cd server
 node db/reset-problems.js
-```
-
-* Test DB connection:
-
-```bash
 node test-db.js
 ```
 
-* Fix testcase paths:
+### 5. Start
 
 ```bash
-node db/fix-testcase-paths.js
-```
-
-* Windows path issue: Windows-style paths (e.g., `C:\Users\...`) cause deployment failures in `evaluateSubmission`. Use [`fix-testcase-paths.js`](server/db/fix-testcase-paths.js) or SQL quick fix:
-
-```sql
-UPDATE problems SET input_path = REPLACE(input_path, 'C:\\\\', '/');
+cd server && npm start
+cd ../client && npm start
 ```
 
 ---
 
-### 4️⃣ Start Commands
-
-```bash
-# Terminal 1 - Backend
-cd server && npm run setup-env  # runs setup-environment.js
-npm start                       # start server
-
-# Terminal 2 - Frontend
-cd client && npm start
-
-# Dev mode with nodemon
-npm run dev
-```
-
-Kill any process blocking port 5000:
-
-```bash
-npx kill-port 5000
-```
-
----
-
-## 🌐 API Config Behavior
-
-The client uses [`API_ENDPOINTS`](client/src/config/api.js) / `API_BASE_URL` and auto-selects local vs deployed. Override for local dev via `.env`:
+## 🛠 Architecture
 
 ```
-REACT_APP_API_URL=http://localhost:5000
+[React] → [Express + Socket.io] → [MySQL]
+                          │
+                [Docker Code Execution]
+                          │
+                [Red-Black Tree Queue]
 ```
-
----
-
-## 🛠 Architecture Overview
-
-```
-[ React (Frontend) ] → [ Express + Socket.io (Backend) ] → [ MySQL ]
-                                         │
-                               [ Docker Code Execution ]
-                                         │
-                               [ Red-Black Tree Queue ]
-```
-
----
-
-## 🧩 Matchmaking Algorithm
-
-*(unchanged from before)*
-
----
-
-## 📂 Quick Links
-
-* Server entry: [`index.js`](server/index.js)
-* Execution config: [`EXECUTION_CONFIG`](server/config/executionConfig.js)
-* Execution engine: [`executeCode`](server/utils/codeExecuter.js)
-* Submission evaluator: [`evaluateSubmission`](server/utils/evaluateSubmission.js)
-* Matchmaking: [`matchQueue`](server/matchQueue.js)
-* Client API: [`API_ENDPOINTS`](client/src/config/api.js)
 
 ---
 
 ## 🐛 Troubleshooting
 
-* **Docker daemon error** → Start Docker Desktop & run [`setup-environment.js`](server/setup-environment.js)
-* **DB ETIMEDOUT / Access Denied** → Check `.env` & run [`test-db.js`](server/test-db.js)
-* **Testcase not found** → Run [`fix-testcase-paths.js`](server/db/fix-testcase-paths.js) or reseed via [`reset-problems.js`](server/db/reset-problems.js)
+* **Docker error:** Start Docker Desktop, rerun setup
+* **DB timeout:** Check `.env` host/port, run `node test-db.js`
+* **Missing testcases:** `node db/fix-testcase-paths.js` or reset problems
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-npm run test           # backend tests
-npm run test-localhost # execution tests (local)
-npm run test-docker    # execution tests (docker)
+npm run test          # Backend tests
+npm run test-docker   # Docker exec tests
+npm run test-localhost # Local exec tests
 ```
-
-Reference: [`executeCode`](server/utils/codeExecuter.js), `package.json`.
 
 ---
 
 ## 🤝 Contributing
 
-* Ensure new problems are added under `server/testcases/problem-<id>/`.
-* Fork, branch, commit, push, and PR.
+Fork, branch, commit, push, PR. Areas: new problems, Rust/Go support, UI, security.
 
 ---
 
 ## 📜 License
 
-Licensed under the [MIT License](LICENSE).
-
----
-
-**Built with ❤️ by Harsh Garg**
+MIT License. Built with ❤️ by Harsh Garg — ⭐ the repo!
