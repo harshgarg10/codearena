@@ -1,7 +1,7 @@
 # CodeArena - Real-Time Competitive Programming Platform (Local-First)
 
 Compete head-to-head in real-time coding duels in C++, Python, or Java.
-CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution** for competitive developers — now optimized for **localhost + Docker** setup for safe, reproducible environments.
+CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution** for competitive developers, now optimized for **localhost + Docker** setup for safe, reproducible environments.
 
 ---
 
