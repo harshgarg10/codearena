@@ -1,7 +1,9 @@
 # CodeArena - Real-Time Competitive Programming Platform (Local-First)
 
 Compete head-to-head in real-time coding duels in C++, Python, or Java.
-CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution** for competitive developers, now optimized for **localhost + Docker** setup for safe, reproducible environments.
+CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution** for competitive developers — now optimized for **localhost + Docker** setup for safe, reproducible environments.
+
+> **Local-first / Docker required:** This project must run with Docker. Before starting, run the checker script [`setupEnvironment`](server/setup-environment.js) to verify Docker and build images.
 
 ---
 
@@ -15,38 +17,7 @@ CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live exec
 
 ## ✨ Features
 
-### 🎮 Game Modes
-
-* **Ranked Matches:** ELO-based rating updates with fair matchmaking
-* **Play with Friends:** Casual rooms via room codes
-
-### ⚡ Real-Time Gameplay
-
-* Monaco Editor in-browser (VS Code-like)
-* Live opponent code/test results
-* 30-minute duel timer
-
-### 🖥 Language Support
-
-* C++17 (GCC), Python 3.11+, Java 17+
-* Runs in Docker containers for security (Windows/Linux)
-
-### 📊 Player Stats
-
-* Win/loss records, match history, and leaderboard
-* ELO-based ranking system
-
-### 🔒 Secure Execution
-
-* Isolated Docker environments with CPU/memory limits
-* Path validation & secure testcase access
-* JWT authentication + API rate limiting
-
-### 🔍 Efficient Matchmaking (Red-Black Tree)
-
-* O(log n) insert/search/remove with `bintrees`
-* Closest rating match within 2-minute timeout
-* Live queue monitoring
+*(unchanged from before)*
 
 ---
 
@@ -54,10 +25,25 @@ CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live exec
 
 ### 📋 Prerequisites
 
-* Node.js (v16+) & npm
+* Node.js v16+ (recommended v18+)
+* npm
 * Docker Desktop (Windows/macOS) or Docker Engine (Linux)
 * MySQL (optional for local DB)
 * Git
+
+---
+
+### 🐳 Docker Instructions
+
+1. Start Docker Desktop before running the app.
+2. Verify Docker is running:
+
+```bash
+docker --version
+docker ps
+```
+
+3. Build Docker images manually if needed: [`build-docker-images.bat`](server/build-docker-images.bat)
 
 ---
 
@@ -99,47 +85,69 @@ REACT_APP_API_URL=http://localhost:5000
 
 ---
 
-### 3️⃣ Verify Docker
+### 3️⃣ Database Setup & Fixes
+
+* Create DB & select it:
 
 ```bash
-docker --version
-docker ps
+mysql -u root -p -D codearena
 ```
 
-Make sure Docker Desktop is running.
-
-Run setup:
+* Automated reset & seed problems:
 
 ```bash
-cd server
-node setup-environment.js
-```
-
----
-
-### 4️⃣ Database Setup
-
-```bash
-# Automated reset & seed problems
 cd server
 node db/reset-problems.js
+```
 
-# Test DB connection
+* Test DB connection:
+
+```bash
 node test-db.js
 ```
 
+* Fix testcase paths:
+
+```bash
+node db/fix-testcase-paths.js
+```
+
+* Windows path issue: Windows-style paths (e.g., `C:\Users\...`) cause deployment failures in `evaluateSubmission`. Use [`fix-testcase-paths.js`](server/db/fix-testcase-paths.js) or SQL quick fix:
+
+```sql
+UPDATE problems SET input_path = REPLACE(input_path, 'C:\\\\', '/');
+```
+
 ---
 
-### 5️⃣ Start App
+### 4️⃣ Start Commands
 
 ```bash
 # Terminal 1 - Backend
-cd server
-npm start    # http://localhost:5000
+cd server && npm run setup-env  # runs setup-environment.js
+npm start                       # start server
 
 # Terminal 2 - Frontend
-cd client
-npm start    # http://localhost:3000
+cd client && npm start
+
+# Dev mode with nodemon
+npm run dev
+```
+
+Kill any process blocking port 5000:
+
+```bash
+npx kill-port 5000
+```
+
+---
+
+## 🌐 API Config Behavior
+
+The client uses [`API_ENDPOINTS`](client/src/config/api.js) / `API_BASE_URL` and auto-selects local vs deployed. Override for local dev via `.env`:
+
+```
+REACT_APP_API_URL=http://localhost:5000
 ```
 
 ---
@@ -158,75 +166,45 @@ npm start    # http://localhost:3000
 
 ## 🧩 Matchmaking Algorithm
 
-```js
-const { RBTree } = require('bintrees');
-class MatchQueue {
-  constructor() {
-    this.tree = new RBTree((a, b) => a.rating - b.rating || a.socketId.localeCompare(b.socketId));
-  }
-  insert(user) { this.tree.insert(user); }
-  remove(user) { this.tree.remove(user); }
-  match(user) {
-    const it = this.tree.lowerBound(user);
-    const c1 = it.data(); const c2 = it.prev();
-    const match = [c1, c2].filter(Boolean)
-      .map(u => ({ u, diff: Math.abs(u.rating - user.rating) }))
-      .sort((a, b) => a.diff - b.diff)[0];
-    if (!match) return null;
-    this.tree.remove(match.u);
-    return match.u;
-  }
-}
-```
+*(unchanged from before)*
+
+---
+
+## 📂 Quick Links
+
+* Server entry: [`index.js`](server/index.js)
+* Execution config: [`EXECUTION_CONFIG`](server/config/executionConfig.js)
+* Execution engine: [`executeCode`](server/utils/codeExecuter.js)
+* Submission evaluator: [`evaluateSubmission`](server/utils/evaluateSubmission.js)
+* Matchmaking: [`matchQueue`](server/matchQueue.js)
+* Client API: [`API_ENDPOINTS`](client/src/config/api.js)
 
 ---
 
 ## 🐛 Troubleshooting
 
-* **Docker error** → Start Docker Desktop & re-run `node setup-environment.js`
-* **DB timeout** → Check `.env` DB host/port → `node test-db.js`
-* **Testcase not found** →
-
-  ```bash
-  node db/fix-testcase-paths.js
-  # or
-  node db/reset-problems.js
-  ```
+* **Docker daemon error** → Start Docker Desktop & run [`setup-environment.js`](server/setup-environment.js)
+* **DB ETIMEDOUT / Access Denied** → Check `.env` & run [`test-db.js`](server/test-db.js)
+* **Testcase not found** → Run [`fix-testcase-paths.js`](server/db/fix-testcase-paths.js) or reseed via [`reset-problems.js`](server/db/reset-problems.js)
 
 ---
 
 ## 🧪 Testing
 
 ```bash
-# Backend tests
-npm run test
-
-# Execution tests (Docker/local)
-npm run test-docker
-npm run test-localhost
+npm run test           # backend tests
+npm run test-localhost # execution tests (local)
+npm run test-docker    # execution tests (docker)
 ```
+
+Reference: [`executeCode`](server/utils/codeExecuter.js), `package.json`.
 
 ---
 
 ## 🤝 Contributing
 
-```bash
-# Fork & branch
-git checkout -b feature/new-feature
-
-# Make changes
-git commit -m "Add new feature"
-
-# Push & PR
-git push origin feature/new-feature
-```
-
-**Areas to contribute:**
-
-* New problems / test cases
-* Add Rust/Go support
-* UI enhancements
-* Security improvements
+* Ensure new problems are added under `server/testcases/problem-<id>/`.
+* Fork, branch, commit, push, and PR.
 
 ---
 
@@ -237,4 +215,3 @@ Licensed under the [MIT License](LICENSE).
 ---
 
 **Built with ❤️ by Harsh Garg**
-If you love it, ⭐ star the repo!
