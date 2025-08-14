@@ -1,4 +1,10 @@
-const API_BASE_URL = 'http://localhost:5000';
+// Detect environment based on current hostname
+const isDevelopment = window.location.hostname === 'localhost';
+
+// Select API base URL based on environment
+const API_BASE_URL = isDevelopment 
+  ? 'http://localhost:5000' 
+  : 'https://codearena-backend-z4dx.onrender.com';
 
 export const API_ENDPOINTS = {
   // Auth endpoints
@@ -19,8 +25,10 @@ export const API_ENDPOINTS = {
   // Socket.io
   SOCKET_URL: API_BASE_URL
 };
-console.log('🔍 API Configuration Debug:');
-console.log('API_BASE_URL:', API_BASE_URL);
-console.log('LOGIN endpoint:', API_ENDPOINTS.LOGIN);
-console.log('LEADERBOARD endpoint:', API_ENDPOINTS.LEADERBOARD_TOP);
+
+// Log the selected API configuration
+console.log(`🌍 Environment: ${isDevelopment ? 'DEVELOPMENT' : 'PRODUCTION'}`);
+console.log('🔌 API_BASE_URL:', API_BASE_URL);
+console.log('🔐 LOGIN endpoint:', API_ENDPOINTS.LOGIN);
+
 export default API_BASE_URL;
