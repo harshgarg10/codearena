@@ -1,7 +1,5 @@
 # CodeArena - Real-Time Competitive Programming Platform
 
-**Live Demo:** [https://codearena-bice.vercel.app](https://codearena-bice.vercel.app)
-
 Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeArena delivers fast-paced gameplay, fair matchmaking, and secure live execution for competitive developers.
 
 ---
