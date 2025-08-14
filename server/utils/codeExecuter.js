@@ -3,22 +3,24 @@ const fs = require('fs');
 const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const os = require('os');
+const { EXECUTION_CONFIG, isLocal } = require('../config/executionConfig');
 
-const TEMP_DIR = path.join(__dirname, '..', 'temp');
+const TEMP_DIR = EXECUTION_CONFIG.native.tempDir;
 const IS_WINDOWS = os.platform() === 'win32';
 
-// Ensure temp directory exists
+// Ensure temp directory exists for native execution
 if (!fs.existsSync(TEMP_DIR)) {
   fs.mkdirSync(TEMP_DIR, { recursive: true });
 }
 
-const LANGUAGE_CONFIG = {
+// Native execution language configurations (Windows/Linux)
+const NATIVE_LANGUAGE_CONFIG = {
   cpp: {
     filename: 'main.cpp',
     compile: (srcPath, binPath) => IS_WINDOWS ? 
-      `g++ -O2 -std=c++17 "${srcPath}" -o "${binPath}"` : // Remove .exe here
+      `g++ -O2 -std=c++17 "${srcPath}" -o "${binPath}"` : 
       `g++ -O2 -std=c++17 "${srcPath}" -o "${binPath}"`,
-    execute: (binPath) => IS_WINDOWS ? `"${binPath}"` : `"${binPath}"`, // Remove .exe here too
+    execute: (binPath) => IS_WINDOWS ? `"${binPath}"` : `"${binPath}"`,
     needsCompilation: true
   },
   python: {
@@ -35,9 +37,44 @@ const LANGUAGE_CONFIG = {
   }
 };
 
+// Docker execution configurations
+const DOCKER_LANGUAGE_CONFIG = {
+  cpp: {
+    image: EXECUTION_CONFIG.docker.images.cpp,
+    filename: 'main.cpp',
+    needsCompilation: true
+  },
+  python: {
+    image: EXECUTION_CONFIG.docker.images.python,
+    filename: 'main.py',
+    needsCompilation: false
+  },
+  java: {
+    image: EXECUTION_CONFIG.docker.images.java,
+    filename: 'Main.java',
+    needsCompilation: true
+  }
+};
+
+/**
+ * Main code execution function - routes to native or docker
+ */
 function executeCode(code, input, language) {
+  console.log(`🎯 Executing ${language} code in ${EXECUTION_CONFIG.mode} mode`);
+  
+  if (EXECUTION_CONFIG.mode === 'native') {
+    return executeNative(code, input, language);
+  } else {
+    return executeDocker(code, input, language);
+  }
+}
+
+/**
+ * Native execution (Windows/Linux local development)
+ */
+function executeNative(code, input, language) {
   return new Promise((resolve) => {
-    const config = LANGUAGE_CONFIG[language];
+    const config = NATIVE_LANGUAGE_CONFIG[language];
     if (!config) {
       return resolve({
         verdict: 'Runtime Error',
@@ -52,7 +89,7 @@ function executeCode(code, input, language) {
     try {
       // Create working directory
       fs.mkdirSync(workDir, { recursive: true });
-      console.log(`📁 Created working directory: ${workDir}`);
+      console.log(`📁 Created native working directory: ${workDir}`);
 
       // Write source code and input
       const srcPath = path.join(workDir, config.filename);
@@ -61,7 +98,7 @@ function executeCode(code, input, language) {
       fs.writeFileSync(srcPath, code);
       fs.writeFileSync(inputPath, input || '');
       
-      console.log(`📝 Written ${language} code and input`);
+      console.log(`📝 Written ${language} code and input for native execution`);
 
       if (IS_WINDOWS) {
         executeOnWindows(config, srcPath, inputPath, workDir, language, resolve);
@@ -70,7 +107,7 @@ function executeCode(code, input, language) {
       }
 
     } catch (error) {
-      console.error('❌ Execution setup error:', error);
+      console.error('❌ Native execution setup error:', error);
       cleanup(workDir);
       resolve({
         verdict: 'Runtime Error',
@@ -81,8 +118,166 @@ function executeCode(code, input, language) {
   });
 }
 
+function executeDocker(code, input, language) {
+  return new Promise((resolve) => {
+    const config = DOCKER_LANGUAGE_CONFIG[language];
+    if (!config) {
+      return resolve({
+        verdict: 'Runtime Error',
+        output: 'Unsupported language',
+        time: 0
+      });
+    }
+
+    const submissionId = uuidv4();
+    const containerName = `code-runner-${submissionId}`;
+    
+    console.log(`🐳 Starting Docker execution for ${language}`);
+
+    try {
+      const hostTempDir = path.join(os.tmpdir(), `code-${submissionId}`);
+      
+      if (!fs.existsSync(hostTempDir)) {
+        fs.mkdirSync(hostTempDir, { recursive: true });
+      }
+
+      const srcPath = path.join(hostTempDir, config.filename);
+      const inputPath = path.join(hostTempDir, 'input.txt');
+      
+      fs.writeFileSync(srcPath, code);
+      fs.writeFileSync(inputPath, input || '');
+
+      console.log(`📝 Written ${language} code for Docker execution`);
+
+      const dockerCmd = buildDockerCommand(config, containerName, hostTempDir);
+      
+      console.log(`🐳 Running Docker: ${dockerCmd}`);
+
+      const startTime = Date.now();
+      exec(dockerCmd, {
+        timeout: EXECUTION_CONFIG.docker.timeout,
+        maxBuffer: 1024 * 1024
+      }, (err, stdout, stderr) => {
+        const executionTime = (Date.now() - startTime) / 1000;
+        
+        cleanupDocker(containerName, hostTempDir);
+        
+        let verdict = 'Success';
+        let output = stdout.trim();
+        
+        // Log raw output for debugging
+        console.log(`🔍 Raw stdout: "${stdout}"`);
+        console.log(`🔍 Raw stderr: "${stderr}"`);
+        
+        if (err) {
+          if (err.killed || err.code === 124) {
+            verdict = 'Time Limit Exceeded';
+            output = 'Execution timed out';
+          } else if (err.code === 1) {
+            // Check error patterns from runner scripts
+            const errorOutput = stderr.trim() || stdout.trim();
+            
+            if (errorOutput.includes('COMPILATION_ERROR')) {
+              verdict = 'Compilation Error';
+              output = errorOutput.replace('COMPILATION_ERROR', '').replace(/^:\s*/, '').trim();
+            } else if (errorOutput.includes('TIMEOUT_ERROR')) {
+              verdict = 'Time Limit Exceeded';
+              output = 'Execution timed out';
+            } else if (errorOutput.includes('RUNTIME_ERROR')) {
+              verdict = 'Runtime Error';
+              output = errorOutput.replace('RUNTIME_ERROR', '').replace(/^:\s*/, '').trim();
+            } else if (errorOutput.includes('Could not reserve enough space')) {
+              verdict = 'Runtime Error';
+              output = 'Memory allocation error - insufficient resources';
+            } else {
+              verdict = 'Runtime Error';
+              output = errorOutput || 'Unknown runtime error';
+            }
+          } else {
+            verdict = 'Runtime Error';
+            output = stderr || err.message || 'Unknown error';
+          }
+        }
+
+        // Filter out debug messages that went to stdout
+        const debugMessages = [
+          'Starting compilation...',
+          'Starting Java compilation...',
+          'Compilation successful, starting execution...',
+          'Java compilation successful, starting execution...'
+        ];
+        
+        for (const msg of debugMessages) {
+          output = output.replace(msg, '').trim();
+        }
+        
+        // Clean up any error prefixes
+        output = output.replace(/^(COMPILATION_ERROR|TIMEOUT_ERROR|RUNTIME_ERROR):\s*/, '');
+        
+        console.log(`📊 Docker execution result: ${verdict}, Time: ${executionTime}s`);
+        console.log(`📊 Final output: "${output}"`);
+        
+        resolve({
+          verdict,
+          output: output || 'No output produced',
+          time: executionTime
+        });
+      });
+
+    } catch (error) {
+      console.error('❌ Docker execution setup error:', error);
+      cleanupDocker(containerName, path.join(os.tmpdir(), `code-${submissionId}`));
+      resolve({
+        verdict: 'Runtime Error',
+        output: `Docker setup failed: ${error.message}`,
+        time: 0
+      });
+    }
+  });
+}
+
+/**
+ * Build Docker run command
+ */
+function buildDockerCommand(config, containerName, hostTempDir) {
+  const dockerConfig = EXECUTION_CONFIG.docker;
+  
+  return [
+    'docker run',
+    '--rm',
+    `--name ${containerName}`,
+    `--memory=${dockerConfig.memoryLimit}`,
+    `--cpus=${dockerConfig.cpuLimit}`,
+    `--network=${dockerConfig.networkMode}`,
+    '--ulimit nproc=64:64',
+    '--ulimit nofile=64:64',
+    `--volume "${hostTempDir}:/code"`,
+    '--workdir /code',
+    config.image
+  ].join(' ');
+}
+
+/**
+ * Cleanup Docker resources
+ */
+function cleanupDocker(containerName, hostTempDir) {
+  try {
+    exec(`docker rm -f ${containerName}`, (err) => {
+      if (err) console.log(`🧹 Container ${containerName} already removed`);
+    });
+    
+    if (fs.existsSync(hostTempDir)) {
+      fs.rmSync(hostTempDir, { recursive: true, force: true });
+      console.log(`🧹 Cleaned up Docker temp directory: ${hostTempDir}`);
+    }
+  } catch (error) {
+    console.error('🧹 Docker cleanup error:', error.message);
+  }
+}
+
+// Windows execution functions
 function executeOnWindows(config, srcPath, inputPath, workDir, language, resolve) {
-  console.log('🪟 Using Windows execution with Job Objects');
+  console.log('🪟 Using Windows native execution');
   
   const binPath = config.needsCompilation ? 
     path.join(workDir, language === 'java' ? 'bin' : 'main') : srcPath;
@@ -101,7 +296,7 @@ function compileOnWindows(config, srcPath, binPath, inputPath, workDir, language
   const startTime = Date.now();
   exec(compileCmd, {
     cwd: workDir,
-    timeout: 10000, // 10 second compile timeout
+    timeout: 10000,
     windowsHide: true
   }, (err, stdout, stderr) => {
     const compileTime = (Date.now() - startTime) / 1000;
@@ -118,12 +313,10 @@ function compileOnWindows(config, srcPath, binPath, inputPath, workDir, language
 
     console.log('✅ Compilation successful');
     
-    // Fix: Correct executable path construction
     let executablePath;
     if (language === 'java') {
-      executablePath = binPath; // Java doesn't need .exe
+      executablePath = binPath;
     } else if (IS_WINDOWS) {
-      // For C++ on Windows, the compile command already adds .exe
       executablePath = `${binPath}.exe`;
     } else {
       executablePath = binPath;
@@ -134,19 +327,17 @@ function compileOnWindows(config, srcPath, binPath, inputPath, workDir, language
   });
 }
 
-
 function runOnWindows(config, executablePath, inputPath, workDir, resolve) {
   const runCmd = config.execute(executablePath);
   console.log(`🚀 Running on Windows: ${runCmd}`);
   
-  // Use a simpler approach without PowerShell jobs for better compatibility
   const startTime = Date.now();
   
   const child = exec(runCmd, {
     cwd: workDir,
-    timeout: 5000, // 5 second timeout
+    timeout: 5000,
     windowsHide: true,
-    maxBuffer: 1024 * 1024 // 1MB buffer
+    maxBuffer: 1024 * 1024
   }, (err, stdout, stderr) => {
     const executionTime = (Date.now() - startTime) / 1000;
     
@@ -185,8 +376,9 @@ function runOnWindows(config, executablePath, inputPath, workDir, resolve) {
   }
 }
 
+// Linux execution functions
 function executeOnLinux(config, srcPath, inputPath, workDir, language, resolve) {
-  console.log('🐧 Using Linux execution');
+  console.log('🐧 Using Linux native execution');
   
   const binPath = config.needsCompilation ? 
     path.join(workDir, language === 'java' ? 'bin' : 'main') : srcPath;
@@ -226,7 +418,7 @@ function runOnLinux(config, executablePath, inputPath, workDir, resolve) {
   const startTime = Date.now();
   const child = exec(runCmd, {
     cwd: workDir,
-    timeout: 5000, // 5 second timeout
+    timeout: 5000,
     maxBuffer: 1024 * 1024
   }, (err, stdout, stderr) => {
     const executionTime = (Date.now() - startTime) / 1000;
@@ -263,7 +455,6 @@ function runOnLinux(config, executablePath, inputPath, workDir, resolve) {
 function cleanup(workDir) {
   try {
     if (fs.existsSync(workDir)) {
-      // On Windows, sometimes files are locked, so we need to retry
       const maxRetries = 3;
       let retries = 0;
       

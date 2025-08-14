@@ -1,6 +1,6 @@
 // Load environment variables FIRST
 require('dotenv').config();
-
+const { EXECUTION_CONFIG, isLocalhost } = require('./config/executionConfig');
 console.log('=== Environment Variables Check ===');
 console.log('DB_HOST:', process.env.DB_HOST);
 console.log('DB_USER:', process.env.DB_USER);
@@ -31,6 +31,11 @@ const io = socketIo(server, {
 });
 
 const PORT = process.env.PORT || 5000;
+console.log('\n🚀 CodeArena Server Starting...');
+console.log(`🎯 Execution Mode: ${EXECUTION_CONFIG.mode.toUpperCase()}`);
+console.log(`🌍 Environment: ${isLocalhost ? 'LOCALHOST' : 'DEPLOYMENT'}`);
+
+
 app.use('/testcases', (req, res) => {
   console.log(`🚨 Blocked attempt to access testcases: ${req.path}`);
   res.status(403).json({ error: 'Access forbidden' });

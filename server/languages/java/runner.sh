@@ -1,42 +1,47 @@
 #!/bin/bash
+# Updated runner: capture errors without letting `set -e` kill the script early.
+set -u
 
-# Check if files exist
 if [ ! -f "Main.java" ]; then
-  echo "VERDICT:Compilation Error"
-  echo "Main.java file not found"
-  echo "EXIT_CODE:1"
+  echo "COMPILATION_ERROR: Source file not found"
   exit 1
 fi
 
 if [ ! -f "input.txt" ]; then
-  echo "VERDICT:Runtime Error"
-  echo "input.txt file not found"
-  echo "EXIT_CODE:1"
-  exit 1
+  touch input.txt
 fi
 
-# Compile Java code
+# Compilation (temporarily disable errexit)
+set +e
 javac Main.java 2> compile_error.txt
-if [ $? -ne 0 ]; then
-  echo "VERDICT:Compilation Error"
+COMPILE_EXIT=$?
+set -e
+
+if [ $COMPILE_EXIT -ne 0 ]; then
+  echo "COMPILATION_ERROR"
   cat compile_error.txt
-  echo "EXIT_CODE:1"
   exit 1
 fi
 
-# Run with timeout and time measurement
-timeout 2s /usr/bin/time -f "TIME:%e" java -Xmx128m Main < input.txt > output.txt 2> runtime_error.txt
+# Execution (capture exit code)
+set +e
+timeout 5s java $JAVA_OPTS Main < input.txt 1> program_stdout.txt 2> program_stderr.txt
 EXIT_CODE=$?
+set -e
 
-# Handle different exit scenarios
-if [ $EXIT_CODE -eq 124 ]; then
-  echo "VERDICT:Time Limit Exceeded"
-elif [ $EXIT_CODE -eq 0 ]; then
-  echo "VERDICT:Success"
-  cat output.txt
-else
-  echo "VERDICT:Runtime Error"
-  cat runtime_error.txt
+# If program wrote stdout, print it; otherwise print stderr for diagnostics
+if [ -s program_stdout.txt ]; then
+  cat program_stdout.txt
+elif [ -s program_stderr.txt ]; then
+  cat program_stderr.txt
 fi
 
-echo "EXIT_CODE:$EXIT_CODE"
+if [ $EXIT_CODE -eq 124 ]; then
+  echo "TIMEOUT_ERROR: Execution timed out" >&2
+  exit 124
+elif [ $EXIT_CODE -ne 0 ]; then
+  echo "RUNTIME_ERROR: Java process exited with code $EXIT_CODE" >&2
+  exit $EXIT_CODE
+fi
+
+exit 0

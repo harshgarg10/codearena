@@ -1,42 +1,46 @@
 #!/bin/bash
 
-# Check if files exist
+set -u
+
 if [ ! -f "main.cpp" ]; then
-  echo "VERDICT:Compilation Error"
-  echo "main.cpp file not found"
-  echo "EXIT_CODE:1"
+  echo "COMPILATION_ERROR: Source file not found"
   exit 1
 fi
 
 if [ ! -f "input.txt" ]; then
-  echo "VERDICT:Runtime Error"
-  echo "input.txt file not found"
-  echo "EXIT_CODE:1"
-  exit 1
+  touch input.txt
 fi
 
-# Compile the C++ code
-g++ -O2 -std=c++17 main.cpp -o main.out 2> compile_error.txt
-if [ $? -ne 0 ]; then
-  echo "VERDICT:Compilation Error"
+# Compilation: disable errexit so we can capture compiler output
+set +e
+g++ -O2 -std=c++17 main.cpp -o main 2> compile_error.txt
+COMPILE_EXIT=$?
+set -e
+
+if [ $COMPILE_EXIT -ne 0 ]; then
+  echo "COMPILATION_ERROR"
   cat compile_error.txt
-  echo "EXIT_CODE:1"
   exit 1
 fi
 
-# Run with timeout and time measurement
-timeout 2s /usr/bin/time -f "TIME:%e" ./main.out < input.txt > output.txt 2> runtime_error.txt
+# Execution: capture stdout/stderr
+set +e
+timeout 3s ./main < input.txt 1> program_stdout.txt 2> program_stderr.txt
 EXIT_CODE=$?
+set -e
 
-# Handle different exit scenarios
-if [ $EXIT_CODE -eq 124 ]; then
-  echo "VERDICT:Time Limit Exceeded"
-elif [ $EXIT_CODE -eq 0 ]; then
-  echo "VERDICT:Success"
-  cat output.txt
-else
-  echo "VERDICT:Runtime Error"
-  cat runtime_error.txt
+if [ -s program_stdout.txt ]; then
+  cat program_stdout.txt
+elif [ -s program_stderr.txt ]; then
+  cat program_stderr.txt
 fi
 
-echo "EXIT_CODE:$EXIT_CODE"
+if [ $EXIT_CODE -eq 124 ]; then
+  echo "TIMEOUT_ERROR: Execution timed out" >&2
+  exit 124
+elif [ $EXIT_CODE -ne 0 ]; then
+  echo "RUNTIME_ERROR: Process exited with code $EXIT_CODE" >&2
+  exit $EXIT_CODE
+fi
+
+exit 0

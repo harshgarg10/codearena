@@ -1,7 +1,7 @@
-FROM python:3.11-slim
-RUN apt-get update && apt-get install -y time && rm -rf /var/lib/apt/lists/*
+FROM python:3.11-alpine
+RUN apk add --no-cache bash time
 COPY runner.sh /runner.sh
 RUN chmod +x /runner.sh
 WORKDIR /code
-COPY . /code/
+USER nobody
 CMD ["/runner.sh"]

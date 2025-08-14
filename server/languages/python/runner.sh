@@ -1,33 +1,32 @@
 #!/bin/bash
+set -u
 
-# Check if files exist
 if [ ! -f "main.py" ]; then
-  echo "VERDICT:Runtime Error"
-  echo "main.py file not found"
-  echo "EXIT_CODE:1"
+  echo "RUNTIME_ERROR: Source file not found"
   exit 1
 fi
 
 if [ ! -f "input.txt" ]; then
-  echo "VERDICT:Runtime Error"
-  echo "input.txt file not found"
-  echo "EXIT_CODE:1"
-  exit 1
+  touch input.txt
 fi
 
-# Run Python code with timeout and time measurement
-timeout 2s /usr/bin/time -f "TIME:%e" python3 main.py < input.txt > output.txt 2> runtime_error.txt
+set +e
+timeout 2s python3 main.py < input.txt 1> program_stdout.txt 2> program_stderr.txt
 EXIT_CODE=$?
+set -e
 
-# Handle different exit scenarios
-if [ $EXIT_CODE -eq 124 ]; then
-  echo "VERDICT:Time Limit Exceeded"
-elif [ $EXIT_CODE -eq 0 ]; then
-  echo "VERDICT:Success"
-  cat output.txt
-else
-  echo "VERDICT:Runtime Error"
-  cat runtime_error.txt
+if [ -s program_stdout.txt ]; then
+  cat program_stdout.txt
+elif [ -s program_stderr.txt ]; then
+  cat program_stderr.txt
 fi
 
-echo "EXIT_CODE:$EXIT_CODE"
+if [ $EXIT_CODE -eq 124 ]; then
+  echo "TIMEOUT_ERROR: Execution timed out" >&2
+  exit 124
+elif [ $EXIT_CODE -ne 0 ]; then
+  echo "RUNTIME_ERROR: Python process exited with code $EXIT_CODE" >&2
+  exit $EXIT_CODE
+fi
+
+exit 0
