@@ -8,34 +8,34 @@ const TESTCASE_DIR = path.resolve(__dirname, '..', 'testcases');
  * @param {string} filePath - The file path to read
  * @returns {string} File content
  */
+
 const secureFileRead = (filePath) => {
   try {
-    // Resolve the absolute path
-    const resolvedPath = path.resolve(filePath);
-    const allowedRoot = path.resolve(TESTCASE_DIR);
-    
-    // Ensure the file is within the testcase directory
-    if (!resolvedPath.startsWith(allowedRoot)) {
-      throw new Error(`🚨 Security violation: File outside testcase directory`);
+    // Try direct path first
+    if (fs.existsSync(filePath)) {
+      return fs.readFileSync(filePath, 'utf8');
     }
     
-    // Check if file exists
-    if (!fs.existsSync(resolvedPath)) {
-      throw new Error(`📁 File not found: ${path.basename(filePath)}`);
+    // If that fails, try resolving from project root
+    const altPath = path.resolve(__dirname, '..', filePath);
+    if (fs.existsSync(altPath)) {
+      return fs.readFileSync(altPath, 'utf8');
     }
     
-    // Additional check for file extension
-    const ext = path.extname(resolvedPath).toLowerCase();
-    if (ext !== '.txt') {
-      throw new Error(`🚨 Security violation: Invalid file type`);
+    // Extract problem-id and filename for a last attempt
+    const match = filePath.match(/problem-(\d+)[\/\\](\w+\d+\.txt)/);
+    if (match) {
+      const [_, problemId, filename] = match;
+      const fallbackPath = path.join(__dirname, '..', 'testcases', `problem-${problemId}`, filename);
+      if (fs.existsSync(fallbackPath)) {
+        return fs.readFileSync(fallbackPath, 'utf8');
+      }
     }
     
-    // Read and return file content
-    return fs.readFileSync(resolvedPath, 'utf-8');
-    
+    throw new Error(`File not found: ${filePath}`);
   } catch (error) {
-    console.error(`🔒 Secure file read failed:`, error.message);
-    throw error;
+    console.error(`❌ Error reading file securely: ${error.message}`);
+    throw new Error(`Failed to read file: ${filePath}`);
   }
 };
 

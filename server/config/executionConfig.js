@@ -3,9 +3,9 @@ const path = require('path');
 // Environment detection
 const isProduction = process.env.NODE_ENV === 'production';
 const isRailway = process.env.RAILWAY_ENVIRONMENT === 'production' || process.env.DB_HOST === 'mysql.railway.internal';
-const isDeployment = isProduction || isRailway || process.env.VERCEL || process.env.HEROKU;
+const isRender = process.env.RENDER === 'true' || process.env.RENDER_INTERNAL_HOSTNAME;
+const isDeployment = isProduction || isRailway || isRender || process.env.VERCEL || process.env.HEROKU;
 const isLocalhost = !isDeployment;
-
 // Execution mode logic:
 // - Localhost: Use Docker (secure isolation)
 // - Deployment: Use native (avoid Docker-in-Docker)

@@ -5,6 +5,52 @@ const { executeCode } = require('./codeExecuter');
 const { secureFileRead, isValidTestcasePath } = require('./secureFileAccess');
 const os = require('os');
 const EXECUTION_PLATFORM = os.platform() === 'win32' ? 'windows' : 'linux';
+// Safe file read that handles both relative and absolute paths
+const safeReadFile = (filePath) => {
+  try {
+    // Try direct path first
+    if (fs.existsSync(filePath)) {
+      return fs.readFileSync(filePath, 'utf8');
+    }
+    
+    // If that fails, try resolving from project root
+    const altPath = path.resolve(__dirname, '..', filePath);
+    if (fs.existsSync(altPath)) {
+      return fs.readFileSync(altPath, 'utf8');
+    }
+    
+    // If all fails, try just the filename from testcases dir
+    const baseName = path.basename(filePath);
+    const problemId = filePath.includes('problem-') ? 
+      filePath.split('problem-')[1].split(/[\/\\]/)[0] : null;
+    
+    if (problemId) {
+      const testcasePath = path.join(__dirname, '..', 'testcases', `problem-${problemId}`, baseName);
+      if (fs.existsSync(testcasePath)) {
+        return fs.readFileSync(testcasePath, 'utf8');
+      }
+    }
+    
+    throw new Error(`File not found: ${filePath}`);
+  } catch (error) {
+    throw new Error(`Error reading file ${filePath}: ${error.message}`);
+  }
+};
+
+const isValidTestcasePath = (filePath) => {
+  // Basic sanity checks to prevent path traversal
+  const normalizedPath = path.normalize(filePath);
+  
+  // Allow paths in testcases directory
+  if (normalizedPath.includes('testcases')) {
+    return true;
+  }
+  
+  // For additional safety, check that the path doesn't contain suspicious patterns
+  return !normalizedPath.includes('..') && 
+         !normalizedPath.includes('~') && 
+         !normalizedPath.includes('.git');
+};
 const compareOutputs = (actual, expected) => {
   // Trim both outputs
   const actualTrimmed = actual.trim();
