@@ -1,6 +1,6 @@
-# CodeArena - Real-Time Competitive Programming Platform (Local-First)
+# CodeArena - Real-Time Competitive Programming Platform
 
-Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution** — optimized for **localhost + Docker** to ensure safe, reproducible environments.
+Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeArena delivers fast-paced gameplay, fair matchmaking, and **secure live execution**, used **Docker** to ensure safe, reproducible environments.
 
 ---
 
@@ -25,7 +25,7 @@ Compete head-to-head in real-time coding duels in C++, Python, or Java. CodeAren
 
 ## 🚀 Quick Start
 
-**Prerequisites:** Node.js 16+, npm, Docker, MySQL (optional), Git
+**Prerequisites:** Node.js 16+, npm, Docker, MySQL, Git
 
 ### 1. Clone & Install
 
